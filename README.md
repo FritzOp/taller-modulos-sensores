@@ -1,6 +1,6 @@
 # GeoCam — Módulos Nativos y Sensores del Dispositivo
 
-**Integrantes:** Deivis Magdaniel, Edgar Zuñiga
+**Integrantes:** Deivis Magdaniel, Edgar Zuñiga 
 Aplicación móvil construida con **React Native** y **Expo** para la captura de fotos geolocalizadas y visualización interactiva en mapa, implementando gestión rigurosa de permisos nativos, degradación elegante y sensores de movimiento.
 
 ---
