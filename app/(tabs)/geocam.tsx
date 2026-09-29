@@ -5,12 +5,15 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCamera } from '@/hooks/useCamera';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
 import { useShake } from '@/hooks/useShake';
+import { useCameraLevel } from '@/hooks/useCameraLevel';
 import { useGeoPhotos } from '@/context/GeoPhotosContext';
 import { PermissionPrimer } from '@/components/PermissionPrimer';
+import { CameraLevelIndicator } from '@/components/CameraLevelIndicator';
 
 export default function GeoCamScreen() {
   const cam = useCamera();
   const geo = useGeoLocation({ watch: true });
+  const level = useCameraLevel();
   const { photos, addPhoto, clearAll } = useGeoPhotos();
 
   // R4: Shake sensor integration to prompt clearing photos
@@ -124,6 +127,13 @@ export default function GeoCamScreen() {
           </Text>
         </View>
       )}
+
+      {/* Reto Opcional: Indicador de nivel artificial para nivelar la cámara */}
+      <CameraLevelIndicator
+        angle={level.angle}
+        isLevel={level.isLevel}
+        isAvailable={level.isAvailable}
+      />
 
       {/* Bottom controls row */}
       <View style={styles.bottomControls}>

@@ -17,6 +17,9 @@
 ### Prompt 3
 > "Crea la pantalla de mapa para GeoCam con `react-native-maps`, mostrando marcadores para fotos con coordenadas y una lista separada para fotos sin ubicación."
 
+### Prompt 4 (Reto Opcional)
+> "Implementa un indicador de nivel de cámara en GeoCam con giroscopio / DeviceMotion de expo-sensors que calcule el ángulo de inclinación y pinte un horizonte artificial en verde cuando esté alineado."
+
 ---
 
 ## 2. Código Generado vs. Código Modificado
@@ -38,6 +41,14 @@
   1. Se separó la consulta inicial de permisos (`getForegroundPermissionsAsync`) de la solicitud activa disparada por acción del usuario (`requestForegroundPermissionsAsync`).
   2. Se implementó la máquina de estados completa de permisos (`checking`, `undetermined`, `granted`, `denied`, `blocked`).
   3. Se integró una bandera booleana `cancelled` para limpiar la promesa de `watchPositionAsync` si el componente se desmonta antes de resolverse.
+
+### useCameraLevel (`hooks/useCameraLevel.ts`) - Reto Opcional
+- **¿Qué generó la IA?:**
+  Un listener directo a `Gyroscope` calculando derivadas manuales sin contemplar la deriva (*drift*) ni la gravedad, haciendo que el nivel perdiera calibración con el movimiento del usuario.
+- **¿Qué modifiqué/corregí?:**
+  1. Se utilizó `DeviceMotion` de `expo-sensors`, que aprovecha la fusión sensorial de hardware (acelerómetro + giroscopio) mediante el ángulo roll `gamma` en radianes y cálculo trigonométrico $\text{atan2}(x, -y)$ con vector de gravedad como respaldo.
+  2. Se configuró `setUpdateInterval(100)` y tolerancia angular ($\le 1.5^\circ$) para feedback visual instantáneo.
+  3. Limpieza adecuada de suscripción con bandera `cancelled` al desmontar la vista de cámara.
 
 ---
 

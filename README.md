@@ -34,11 +34,13 @@ Aplicación móvil construida con **React Native** y **Expo** para la captura de
 │   │   └── index.tsx            # Redirección inicial a GeoCam
 │   └── _layout.tsx              # Root Layout con Stack
 ├── components/
+│   ├── CameraLevelIndicator.tsx # Indicador visual de horizonte artificial (Reto)
 │   └── PermissionPrimer.tsx     # Pantalla previa y manejo de estado 'blocked'
 ├── context/
 │   └── GeoPhotosContext.tsx     # Estado global inmutable de fotos
 ├── hooks/
 │   ├── useCamera.ts             # Encapsulación de CameraView y ciclo de permisos
+│   ├── useCameraLevel.ts        # Cálculo de nivelación y horizonte con DeviceMotion (Reto)
 │   ├── useGeoLocation.ts        # GPS con tracking continuo, lectura única y limpieza
 │   └── useShake.ts              # Detección de sacudida con acelerómetro y cooldown
 ├── types/
@@ -83,6 +85,12 @@ Aplicación móvil construida con **React Native** y **Expo** para la captura de
 - Calcula la magnitud tridimensional del vector de aceleración:
   $$\|A\| = \sqrt{x^2 + y^2 + z^2}$$
 - Dispara la confirmación para borrar todas las fotos solo cuando supera el umbral ($1.8\text{ g}$) y el tiempo transcurrido desde la última sacudida supera el `cooldownMs` ($1000\text{ ms}$).
+
+### `useCameraLevel(updateIntervalMs)` — Reto Opcional
+- Consulta `DeviceMotion.isAvailableAsync()` antes de suscribirse.
+- Fusiona la orientación angular del giroscopio (`rotation.gamma`) con el vector gravitatorio del acelerómetro ($\text{atan2}(x, -y)$).
+- Determina si la cámara está nivelada cuando $|\text{ángulo}| \le 1.5^\circ$.
+- Alimenta el componente [`CameraLevelIndicator`](file:///c:/Users/proju/Documents/taller-modulos-sensores/components/CameraLevelIndicator.tsx) para mostrar un horizonte artificial animado y un badge de confirmación en color esmeralda (`#10b981`).
 
 ---
 
