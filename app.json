@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "temp_app",
-    "slug": "temp_app",
+    "name": "GeoCam",
+    "slug": "geocam",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "tempapp",
+    "scheme": "geocam",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
@@ -32,6 +32,25 @@
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "GeoCam usa la cámara para tomar fotos geolocalizadas.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GeoCam usa tu ubicación para registrar dónde tomaste cada foto."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GeoCam accede a tu galería para importar fotos."
         }
       ]
     ],
