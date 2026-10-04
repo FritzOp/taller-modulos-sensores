@@ -59,10 +59,12 @@ Aplicación móvil construida con **React Native** y **Expo** para la captura de
 | **2. Rechazado (`denied`)** | La cámara funciona con normalidad. En la parte superior se visualiza un banner informativo: *"Activa la ubicación para etiquetar tus fotos"*. Las fotos se guardan con `coords: null`. | Tocar el banner para solicitar el permiso nuevamente. |
 | **3. Bloqueado (`blocked`)** | Ocurre cuando `canAskAgain: false` (el usuario rechazó dos veces en Android o una vez en iOS). El componente `PermissionPrimer` o el banner contextual ofrece el botón **"Abrir Ajustes"**, redirigiendo a la configuración del sistema operativo mediante `Linking.openSettings()`. | Habilitar el permiso manualmente desde los Ajustes del sistema. |
 
-### Espacio para capturas / GIFs de prueba:
-- `assets/screenshots/permission-granted.png`: Estado concedido con visor de cámara y coordenadas en vivo.
-- `assets/screenshots/permission-denied.png`: Banner de advertencia en contexto con cámara activa.
-- `assets/screenshots/permission-blocked.png`: Pantalla previa con botón para abrir ajustes del sistema.
+### Evidencia Visual de los Tres Estados de Permiso
+
+| 1. Concedido (`granted`) | 2. Rechazado (`denied`) | 3. Bloqueado (`blocked`) |
+| :---: | :---: | :---: |
+| ![Estado Concedido](./assets/screenshots/permission-granted.svg) | ![Estado Rechazado](./assets/screenshots/permission-denied.svg) | ![Estado Bloqueado](./assets/screenshots/permission-blocked.svg) |
+| *Cámara activa, nivelador a 0.0° y GPS en vivo.* | *Degradación elegante: cámara activa y banner contextual.* | *PermissionPrimer con redirección a Ajustes.* |
 
 ---
 

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 720" width="380" height="720">
+  <defs>
+    <linearGradient id="camBgDenied" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="shutterGradDenied" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Device Frame -->
+  <rect x="0" y="0" width="380" height="720" rx="40" fill="#09090b" stroke="#27272a" stroke-width="4"/>
+  <rect x="10" y="10" width="360" height="700" rx="32" fill="url(#camBgDenied)"/>
+
+  <!-- Top notch -->
+  <rect x="130" y="18" width="120" height="24" rx="12" fill="#000000"/>
+
+  <!-- Contextual Permission Warning Banner (Amber) -->
+  <rect x="24" y="56" width="332" height="46" rx="12" fill="#f59e0b" fill-opacity="0.95"/>
+  <text x="190" y="78" fill="#18181b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" text-anchor="middle">⚠️ Activa la ubicación para etiquetar tus fotos</text>
+  <text x="190" y="93" fill="#27272a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="500" text-anchor="middle">Toca aquí para solicitar el permiso en contexto</text>
+
+  <!-- Status Label Header -->
+  <rect x="90" y="116" width="200" height="28" rx="14" fill="#f59e0b" fill-opacity="0.2" stroke="#f59e0b" stroke-width="1"/>
+  <text x="190" y="134" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" text-anchor="middle">ESTADO: RECHAZADO (DENIED)</text>
+
+  <!-- Camera View Active Message (Graceful Degradation) -->
+  <rect x="50" y="310" width="280" height="60" rx="16" fill="#000000" fill-opacity="0.75" stroke="#3f3f46" stroke-width="1"/>
+  <text x="190" y="335" fill="#f4f4f5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" text-anchor="middle">Degradación Elegante Activa</text>
+  <text x="190" y="353" fill="#a1a1aa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10.5" text-anchor="middle">La cámara sigue funcionando sin coordenadas GPS</text>
+
+  <!-- Bottom Controls Bar -->
+  <rect x="10" y="590" width="360" height="120" fill="#000000" fill-opacity="0.85"/>
+
+  <!-- Gallery Import Button -->
+  <circle cx="65" cy="650" r="26" fill="#27272a" fill-opacity="0.8"/>
+  <text x="65" y="656" font-size="20" text-anchor="middle">🖼️</text>
+
+  <!-- Shutter Button -->
+  <circle cx="190" cy="650" r="38" fill="none" stroke="#ffffff" stroke-width="4"/>
+  <circle cx="190" cy="650" r="30" fill="url(#shutterGradDenied)"/>
+
+  <!-- Flip Camera Button -->
+  <circle cx="315" cy="650" r="26" fill="#27272a" fill-opacity="0.8"/>
+  <text x="315" y="656" font-size="20" text-anchor="middle">🔄</text>
+</svg>

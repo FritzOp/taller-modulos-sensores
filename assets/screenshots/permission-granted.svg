@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 720" width="380" height="720">
+  <defs>
+    <linearGradient id="camBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="shutterGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Device Frame -->
+  <rect x="0" y="0" width="380" height="720" rx="40" fill="#09090b" stroke="#27272a" stroke-width="4"/>
+  <rect x="10" y="10" width="360" height="700" rx="32" fill="url(#camBg)"/>
+
+  <!-- Top notch / Dynamic Island -->
+  <rect x="130" y="18" width="120" height="24" rx="12" fill="#000000"/>
+
+  <!-- Coordinates Badge (Top Left) -->
+  <rect x="24" y="56" width="160" height="42" rx="8" fill="#000000" fill-opacity="0.75" stroke="#10b981" stroke-width="1"/>
+  <text x="36" y="73" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700">4.60971, -74.08175</text>
+  <text x="36" y="88" fill="#9ca3af" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10">±4 m (GPS Activo)</text>
+
+  <!-- Camera Center Guides & Leveler -->
+  <line x1="120" y1="350" x2="160" y2="350" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2"/>
+  <circle cx="190" cy="350" r="3" fill="#ffffff" fill-opacity="0.7"/>
+  <line x1="220" y1="350" x2="260" y2="350" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2"/>
+
+  <!-- Level Horizon Line (Level = Green) -->
+  <line x1="130" y1="350" x2="250" y2="350" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Level Badge -->
+  <rect x="140" y="375" width="100" height="22" rx="11" fill="#000000" fill-opacity="0.8" stroke="#10b981" stroke-width="1"/>
+  <text x="190" y="390" fill="#10b981" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9.5" font-weight="700" text-anchor="middle">NIVELADO (0.0°)</text>
+
+  <!-- Bottom Controls Bar -->
+  <rect x="10" y="590" width="360" height="120" fill="#000000" fill-opacity="0.85"/>
+
+  <!-- Gallery Import Button -->
+  <circle cx="65" cy="650" r="26" fill="#27272a" fill-opacity="0.8"/>
+  <text x="65" y="656" font-size="20" text-anchor="middle">🖼️</text>
+
+  <!-- Shutter Button -->
+  <circle cx="190" cy="650" r="38" fill="none" stroke="#ffffff" stroke-width="4"/>
+  <circle cx="190" cy="650" r="30" fill="url(#shutterGrad)"/>
+
+  <!-- Flip Camera Button -->
+  <circle cx="315" cy="650" r="26" fill="#27272a" fill-opacity="0.8"/>
+  <text x="315" y="656" font-size="20" text-anchor="middle">🔄</text>
+
+  <!-- Status Label Header -->
+  <rect x="90" y="110" width="200" height="28" rx="14" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-width="1"/>
+  <text x="190" y="128" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" text-anchor="middle">ESTADO: CONCEDIDO (GRANTED)</text>
+</svg>
