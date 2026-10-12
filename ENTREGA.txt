@@ -1,0 +1,46 @@
+================================================================================
+TALLER INTEGRADOR 2 - SEMANA 7
+Base de Datos Local Offline-First con Drizzle ORM y SQLite
+================================================================================
+
+INTEGRANTES:
+- Deivis Magdaniel
+- Edgar Zuñiga
+
+REPOSITORIO DE GITHUB:
+https://github.com/FritzOp/taller-modulos-sensores
+
+RAMA PRINCIPAL:
+master
+
+================================================================================
+RESUMEN DEL ENTREGABLE:
+================================================================================
+1. MIGRACIONES VERSIONADAS (drizzle/):
+   - 0000_absent_blindfold.sql: Tabla inicial 'photos' con geolocalización y timestamps.
+   - 0001_absent_patch.sql: Tabla 'albums' (C1) y columnas 'album_id' (FK set null), 
+     'note' (texto) y 'favorite' (booleano) en 'photos' (C2).
+   - drizzle/migrations.js: Bundle registrado y ejecutado en arranque con useMigrations.
+
+2. ARQUITECTURA OFFLINE-FIRST:
+   - db/client.ts: Conexión SQLite con enableChangeListener: true y PRAGMA foreign_keys = ON.
+   - db/repositories/: photosRepo y albumsRepo desacoplados para consultas reactivas.
+   - hooks/: usePhotos.ts y useAlbums.ts con useLiveQuery para reactividad automática.
+
+3. CRUD COMPLETO Y FILTROS:
+   - app/foto/[id].tsx: Pantalla de detalle con edición de nota, toggle favorito, 
+     cambio de álbum y borrado permanente (C3).
+   - app/(tabs)/galeria.tsx: Buscador reactivo por nota (like), selector de álbumes, 
+     creador de álbumes y filtro de favoritas (C4).
+   - app/(tabs)/geocam.tsx: Captura con persistencia física y sensor de nivelación.
+   - app/(tabs)/mapa.tsx: Mapa reactivo con pines, tooltips y drawer sin ubicación.
+
+4. ALMACENAMIENTO PERMANENTE (services/photoFiles.ts):
+   - Las fotos se transfieren de la caché al directorio permanente de la app 
+     (Paths.document/photos) usando expo-file-system (C5).
+   - Al eliminar el registro, se elimina el archivo físico.
+
+5. DOCUMENTACIÓN:
+   - README.md: Diagrama Entidad-Relación (Mermaid), arquitectura y evidencia visual.
+   - AI-LOG.md: Registro de prompts, código generado vs modificado y alucinaciones detectadas.
+================================================================================
