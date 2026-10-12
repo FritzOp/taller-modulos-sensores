@@ -6,7 +6,7 @@ import { useCamera } from '@/hooks/useCamera';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
 import { useShake } from '@/hooks/useShake';
 import { useCameraLevel } from '@/hooks/useCameraLevel';
-import { useGeoPhotos } from '@/context/GeoPhotosContext';
+import { usePhotos } from '@/hooks/usePhotos';
 import { PermissionPrimer } from '@/components/PermissionPrimer';
 import { CameraLevelIndicator } from '@/components/CameraLevelIndicator';
 
@@ -14,7 +14,7 @@ export default function GeoCamScreen() {
   const cam = useCamera();
   const geo = useGeoLocation({ watch: true });
   const level = useCameraLevel();
-  const { photos, addPhoto, clearAll } = useGeoPhotos();
+  const { photos, addPhoto, clearAll } = usePhotos();
 
   // R4: Shake sensor integration to prompt clearing photos
   useShake(() => {
@@ -60,11 +60,9 @@ export default function GeoCamScreen() {
         ? (geo.coords ?? (await geo.getCurrent()))
         : null;
 
-    addPhoto({
-      id: String(Date.now()),
+    await addPhoto({
       uri: photo.uri,
       coords,
-      createdAt: Date.now(),
       source: 'camera',
     });
   };
@@ -82,11 +80,9 @@ export default function GeoCamScreen() {
           ? (geo.coords ?? (await geo.getCurrent()))
           : null;
 
-      addPhoto({
-        id: String(Date.now()),
+      await addPhoto({
         uri: asset.uri,
         coords,
-        createdAt: Date.now(),
         source: 'gallery',
       });
     }

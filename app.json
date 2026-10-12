@@ -52,7 +52,8 @@
         {
           "photosPermission": "GeoCam accede a tu galería para importar fotos."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true

@@ -7,17 +7,15 @@ import {
   ScrollView,
   Pressable,
   Alert,
-  Dimensions,
 } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
+import { router } from 'expo-router';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
-import { useGeoPhotos } from '@/context/GeoPhotosContext';
+import { usePhotos } from '@/hooks/usePhotos';
 import { useShake } from '@/hooks/useShake';
 
-const { width } = Dimensions.get('window');
-
 export default function MapaScreen() {
-  const { photos, removePhoto, clearAll } = useGeoPhotos();
+  const { photos, removePhoto, clearAll } = usePhotos();
   const geo = useGeoLocation({ watch: true });
 
   // R4: Shake sensor clears photos on this screen as well
@@ -34,8 +32,12 @@ export default function MapaScreen() {
 
   // Separate photos with coordinates vs without coordinates (R3)
   const { geoPhotos, unlocatedPhotos } = useMemo(() => {
-    const geoList = photos.filter((p) => p.coords !== null);
-    const unlocatedList = photos.filter((p) => p.coords === null);
+    const geoList = photos.filter(
+      (p) => p.latitude !== null && p.longitude !== null
+    );
+    const unlocatedList = photos.filter(
+      (p) => p.latitude === null || p.longitude === null
+    );
     return { geoPhotos: geoList, unlocatedPhotos: unlocatedList };
   }, [photos]);
 
@@ -49,10 +51,10 @@ export default function MapaScreen() {
         longitudeDelta: 0.01,
       };
     }
-    if (geoPhotos.length > 0 && geoPhotos[0].coords) {
+    if (geoPhotos.length > 0 && geoPhotos[0].latitude !== null && geoPhotos[0].longitude !== null) {
       return {
-        latitude: geoPhotos[0].coords.latitude,
-        longitude: geoPhotos[0].coords.longitude,
+        latitude: geoPhotos[0].latitude,
+        longitude: geoPhotos[0].longitude,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       };
@@ -76,18 +78,21 @@ export default function MapaScreen() {
         showsMyLocationButton={geo.permission === 'granted'}
       >
         {geoPhotos.map((photo) => {
-          if (!photo.coords) return null;
+          if (photo.latitude === null || photo.longitude === null) return null;
           return (
             <Marker
               key={photo.id}
               coordinate={{
-                latitude: photo.coords.latitude,
-                longitude: photo.coords.longitude,
+                latitude: photo.latitude,
+                longitude: photo.longitude,
               }}
               title={photo.source === 'camera' ? '📷 Foto de Cámara' : '🖼️ Foto de Galería'}
               description={new Date(photo.createdAt).toLocaleString()}
             >
-              <Callout tooltip>
+              <Callout
+                tooltip
+                onPress={() => router.push({ pathname: '/foto/[id]' as any, params: { id: String(photo.id) } })}
+              >
                 <View style={styles.calloutContainer}>
                   <Image source={{ uri: photo.uri }} style={styles.calloutImage} />
                   <View style={styles.calloutContent}>
@@ -95,10 +100,15 @@ export default function MapaScreen() {
                       {photo.source === 'camera' ? 'Foto de Cámara' : 'Foto de Galería'}
                     </Text>
                     <Text style={styles.calloutSubtitle}>
-                      {photo.coords.latitude.toFixed(4)}, {photo.coords.longitude.toFixed(4)}
+                      {photo.latitude.toFixed(4)}, {photo.longitude.toFixed(4)}
                     </Text>
+                    {photo.note ? (
+                      <Text style={styles.calloutNote} numberOfLines={1}>
+                        📝 {photo.note}
+                      </Text>
+                    ) : null}
                     <Text style={styles.calloutDate}>
-                      {new Date(photo.createdAt).toLocaleTimeString()}
+                      {new Date(photo.createdAt).toLocaleTimeString()} • Ver detalle ➔
                     </Text>
                   </View>
                 </View>
@@ -128,21 +138,28 @@ export default function MapaScreen() {
             contentContainerStyle={styles.drawerScroll}
           >
             {unlocatedPhotos.map((photo) => (
-              <View key={photo.id} style={styles.unlocatedCard}>
+              <Pressable
+                key={photo.id}
+                style={styles.unlocatedCard}
+                onPress={() => router.push({ pathname: '/foto/[id]' as any, params: { id: String(photo.id) } })}
+              >
                 <Image source={{ uri: photo.uri }} style={styles.unlocatedImage} />
                 <View style={styles.unlocatedMeta}>
                   <Text style={styles.unlocatedSource}>
                     {photo.source === 'camera' ? '📷 Cámara' : '🖼️ Galería'}
                   </Text>
                   <Pressable
-                    onPress={() => removePhoto(photo.id)}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      removePhoto(photo.id);
+                    }}
                     style={styles.deleteButton}
                     accessibilityLabel="Eliminar foto"
                   >
                     <Text style={styles.deleteButtonText}>✕</Text>
                   </Pressable>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </ScrollView>
         </View>
@@ -211,6 +228,11 @@ const styles = StyleSheet.create({
     color: '#34d399',
     fontSize: 11,
     fontFamily: 'SpaceMono',
+    marginTop: 2,
+  },
+  calloutNote: {
+    color: '#fbbf24',
+    fontSize: 10,
     marginTop: 2,
   },
   calloutDate: {

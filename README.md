@@ -1,65 +1,95 @@
-# GeoCam — Módulos Nativos y Sensores del Dispositivo
+# GeoCam — Módulos Nativos, Sensores y Base de Datos Local Offline-First
 
-**Integrantes:** Deivis Magdaniel, Edgar Zuñiga
----
-Aplicación móvil construida con **React Native** y **Expo** para la captura de fotos geolocalizadas y visualización interactiva en mapa, implementando gestión rigurosa de permisos nativos, degradación elegante y sensores de movimiento.
-
----
-
-## 🏗️ Arquitectura y Principios de Diseño
-
-1. **Ciclo Completo de Permisos Nativo:**
-   - La aplicación implementa una máquina de estados determinista para el hardware:
-     $$\text{undetermined} \longrightarrow \text{granted} \mid \text{denied} \longrightarrow \text{blocked} \longrightarrow \text{openSettings()}$$
-   - **Solicitud en contexto:** Nunca se solicitan permisos en el arranque inicial. La cámara se solicita al ingresar a la pantalla de captura y la ubicación se explica mediante un banner contextual no bloqueante.
-
-2. **Degradación Elegante (*Graceful Degradation*):**
-   - Si el usuario niega o bloquea los permisos de ubicación, la cámara continúa operando con normalidad.
-   - Las fotos capturadas o importadas sin GPS se almacenan con `coords: null` y se listan en el drawer **"Sin ubicación"** en la pestaña del Mapa.
-
-3. **Prevención de Fugas de Recursos y Batería:**
-   - **Limpieza de suscripciones:** Toda suscripción a `Location.watchPositionAsync` y `Accelerometer.addListener` se cancela de forma determinista en el retorno de `useEffect`.
-   - **Condiciones de carrera resueltas:** Se utiliza una bandera booleana `cancelled` para garantizar que si un componente se desmonta antes de que la promesa nativa resuelva, la suscripción se descarte inmediatamente sin quedar huérfana.
+**Integrantes:** Deivis Magdaniel, Edgar Zuñiga  
+**Proyecto:** Taller Integrador 2 — Semanas 6 y 7  
+**Tecnologías:** React Native, Expo SDK 57, TypeScript, Drizzle ORM, SQLite (`expo-sqlite`), Expo Sensors, Expo FileSystem.
 
 ---
 
-## 📂 Estructura del Proyecto
+## 🏗️ Arquitectura de Datos Offline-First
 
-```text
-├── app/
-│   ├── (tabs)/
-│   │   ├── _layout.tsx          # Configuración de pestañas y GeoPhotosProvider
-│   │   ├── geocam.tsx           # Pantalla principal de cámara y captura
-│   │   ├── mapa.tsx             # Visualización de mapa interactivo y fotos
-│   │   └── index.tsx            # Redirección inicial a GeoCam
-│   └── _layout.tsx              # Root Layout con Stack
-├── components/
-│   ├── CameraLevelIndicator.tsx # Indicador visual de horizonte artificial (Reto)
-│   └── PermissionPrimer.tsx     # Pantalla previa y manejo de estado 'blocked'
-├── context/
-│   └── GeoPhotosContext.tsx     # Estado global inmutable de fotos
-├── hooks/
-│   ├── useCamera.ts             # Encapsulación de CameraView y ciclo de permisos
-│   ├── useCameraLevel.ts        # Cálculo de nivelación y horizonte con DeviceMotion (Reto)
-│   ├── useGeoLocation.ts        # GPS con tracking continuo, lectura única y limpieza
-│   └── useShake.ts              # Detección de sacudida con acelerómetro y cooldown
-├── types/
-│   └── geo.ts                   # Interfaces estrictas de TypeScript
-├── AI-LOG.md                    # Registro de auditoría de IA
-└── app.json                     # Plugins nativos (expo-camera, expo-location, expo-image-picker)
+La aplicación implementa una arquitectura por capas desacoplada en cinco niveles, garantizando persistencia local inmediata y type-safety integral:
+
+$$\text{Pantalla (UI)} \longrightarrow \text{Custom Hook (Reactividad)} \longrightarrow \text{Repositorio (SQL)} \longrightarrow \text{Drizzle ORM} \longrightarrow \text{expo-sqlite (.db)}$$
+
+1. **Pantallas (`app/`):** Consumen datos a través de hooks. **Ninguna pantalla importa directamente Drizzle ni SQLite.**
+2. **Hooks (`hooks/`):** Conectan las consultas reactivas de `useLiveQuery` con acciones de mutación.
+3. **Repositorios (`db/repositories/`):** Única capa que construye las sentencias SQL con Drizzle (`listQuery`, `withLocationQuery`, `create`, `update`, `remove`).
+4. **Drizzle Client (`db/client.ts`):** Instancia de Drizzle sobre `expo-sqlite` configurada con `enableChangeListener: true` y ejecución de `PRAGMA foreign_keys = ON;`.
+5. **Almacenamiento Permanente (`services/photoFiles.ts`):** Las fotos se transfieren de la caché temporal al directorio permanente de documentos de la aplicación (`Paths.document/photos`). Al eliminar el registro en base de datos, el archivo físico se destruye.
+
+---
+
+## 🗄️ Diagrama Entidad-Relación (Base de Datos SQLite)
+
+```mermaid
+erDiagram
+    ALBUMS ||--o{ PHOTOS : "organiza (onDelete: SET NULL)"
+    ALBUMS {
+        integer id PK "AutoIncrement"
+        text name UK "Único"
+        integer created_at "Timestamp MS"
+    }
+    PHOTOS {
+        integer id PK "AutoIncrement"
+        text uri "Ruta física permanente"
+        real latitude "Decimal opcional"
+        real longitude "Decimal opcional"
+        real accuracy "Precisión GPS en metros"
+        text source "camera | gallery"
+        integer album_id FK "Llave foránea a albums.id"
+        text note "Nota descriptiva opcional"
+        integer favorite "Booleano (default false)"
+        integer created_at "Timestamp MS"
+    }
 ```
 
+* **Regla de integridad:** `onDelete: 'set null'` garantiza que si un álbum es eliminado, sus fotos asociadas no se destruyen, sino que pasan al estado *"Sin álbum"*.
+
 ---
 
-## 📱 Estados de Permiso
+## 🚀 Migraciones Versionadas (`drizzle/`)
 
-| Estado | Comportamiento en GeoCam | Acción del Usuario |
-| :--- | :--- | :--- |
-| **1. Concedido (`granted`)** | La cámara se inicializa a pantalla completa. El banner de coordenadas en vivo muestra latitud, longitud y precisión ($\pm\text{m}$). Las fotos se etiquetan con coordenadas y se ubican en el mapa interactivo. | Tomar fotos, alternar cámara o importar desde galería. |
-| **2. Rechazado (`denied`)** | La cámara funciona con normalidad. En la parte superior se visualiza un banner informativo: *"Activa la ubicación para etiquetar tus fotos"*. Las fotos se guardan con `coords: null`. | Tocar el banner para solicitar el permiso nuevamente. |
-| **3. Bloqueado (`blocked`)** | Ocurre cuando `canAskAgain: false` (el usuario rechazó dos veces en Android o una vez en iOS). El componente `PermissionPrimer` o el banner contextual ofrece el botón **"Abrir Ajustes"**, redirigiendo a la configuración del sistema operativo mediante `Linking.openSettings()`. | Habilitar el permiso manualmente desde los Ajustes del sistema. |
+Se implementó el ciclo de migraciones automáticas sin pérdida de datos para clientes móviles:
 
-### Evidencia Visual de los Tres Estados de Permiso
+1. **Migración 1 (`drizzle/0000_absent_blindfold.sql`):**
+   * Creación inicial de la tabla `photos` con geolocalización, metadata de origen (`camera` / `gallery`) y timestamps.
+2. **Migración 2 (`drizzle/0001_absent_patch.sql`):**
+   * Creación de la tabla `albums` con restricción de unicidad en `name`.
+   * Agregado no destructivo de las columnas `album_id` (FK), `note` (texto) y `favorite` (booleano con valor por defecto `false`).
+3. **Protección en arranque:** El `RootLayout` (`app/_layout.tsx`) utiliza `useMigrations(db, migrations)` para bloquear la navegación hasta que las migraciones pendientes se apliquen exitosamente, evitando consultas sobre tablas incompletas.
+
+---
+
+## 📦 Módulos y Funcionalidades Desarrolladas
+
+### 1. CRUD Completo de Fotografías
+* **Crear:** Captura con cámara nativa o importación desde galería. Los binarios se copian a almacenamiento permanente y las coordenadas se asocian en la base de datos.
+* **Leer y Filtrar (`app/(tabs)/galeria.tsx`):**
+  * Buscador en vivo por texto de nota (`like`).
+  * Filtro dinámico por álbumes y botón para crear nuevos álbumes.
+  * Filtro toggle para fotos favoritas (`favorite = true`).
+  * Consultas reactivas automáticas gracias a `useLiveQuery`.
+* **Detalle y Edición (`app/foto/[id].tsx`):**
+  * Visualización a pantalla completa con metadata técnica.
+  * Edición y guardado de notas.
+  * Marcado/desmarcado de favorito en tiempo real.
+  * Reubicación de álbum mediante chips interactivos.
+* **Eliminar:** Diálogo de confirmación con borrado simultáneo en SQLite y en el sistema de archivos (`services/photoFiles.ts`).
+
+### 2. Mapa Interactivo de Fotos (`app/(tabs)/mapa.tsx`)
+* Pines interactivos sobre fotos georreferenciadas.
+* Vista previa tooltip (*Callout*) con miniatura, notas y acceso directo al detalle de la foto.
+* Drawer inferior deslizable para fotos tomadas sin permiso GPS (*Sin ubicación*).
+
+### 3. Cámara con Hardware Nativo y Sensores
+* **Ciclo de permisos determinista:** `checking` $\to$ `undetermined` $\to$ `granted` $\to$ `denied` $\to$ `blocked`.
+* **Nivelador con horizonte artificial (`hooks/useCameraLevel.ts`):** Sensor `DeviceMotion` fusionado para nivelación en pantalla ($\le 1.5^\circ$).
+* **Sensor de sacudida (`hooks/useShake.ts`):** Umbral de aceleración de $1.8\text{ g}$ con cooldown de $1000\text{ ms}$ para borrado seguro mediante alerta nativa.
+
+---
+
+## 📱 Evidencia Visual de los Tres Estados de Permiso
 
 | 1. Concedido (`granted`) | 2. Rechazado (`denied`) | 3. Bloqueado (`blocked`) |
 | :---: | :---: | :---: |
@@ -68,49 +98,66 @@ Aplicación móvil construida con **React Native** y **Expo** para la captura de
 
 ---
 
-## 🪝 Custom Hooks Desarrollados
+## 📂 Estructura del Repositorio
 
-### `useGeoLocation(options)`
-- Maneja la máquina de estados de permisos (`checking`, `undetermined`, `granted`, `denied`, `blocked`).
-- Expone `getCurrent()` para lecturas puntuales de alta precisión antes de capturar fotos.
-- Implementa seguimiento en tiempo real con `watchPositionAsync` a precisión balanceada (`Accuracy.Balanced`), minimizando el drenado de batería.
-- Limpieza segura con bandera `cancelled`.
-
-### `useCamera()`
-- Encapsula `CameraView` de Expo y `useCameraPermissions()`.
-- Previene capturas simultáneas por doble toque involuntario mediante la bandera de control `isCapturing`.
-- Control de cambio de lente (`front` / `back`) y estado de disponibilidad del sensor (`onCameraReady`).
-
-### `useShake(onShake, options)`
-- Consulta `Accelerometer.isAvailableAsync()` antes de suscribirse.
-- Configura la tasa de refresco a $100\text{ ms}$ (`Accelerometer.setUpdateInterval(100)`).
-- Calcula la magnitud tridimensional del vector de aceleración:
-  $$\|A\| = \sqrt{x^2 + y^2 + z^2}$$
-- Dispara la confirmación para borrar todas las fotos solo cuando supera el umbral ($1.8\text{ g}$) y el tiempo transcurrido desde la última sacudida supera el `cooldownMs` ($1000\text{ ms}$).
-
-### `useCameraLevel(updateIntervalMs)` — Reto Opcional
-- Consulta `DeviceMotion.isAvailableAsync()` antes de suscribirse.
-- Fusiona la orientación angular del giroscopio (`rotation.gamma`) con el vector gravitatorio del acelerómetro ($\text{atan2}(x, -y)$).
-- Determina si la cámara está nivelada cuando $|\text{ángulo}| \le 1.5^\circ$.
-- Alimenta el componente [`CameraLevelIndicator`](file:///c:/Users/proju/Documents/taller-modulos-sensores/components/CameraLevelIndicator.tsx) para mostrar un horizonte artificial animado y un badge de confirmación en color esmeralda (`#10b981`).
+```text
+├── app/
+│   ├── (tabs)/
+│   │   ├── _layout.tsx          # Pestañas GeoCam, Galería y Mapa
+│   │   ├── geocam.tsx           # Visor de cámara y captura
+│   │   ├── galeria.tsx          # Lista reactiva, buscador y filtros (C4)
+│   │   ├── mapa.tsx             # Visualización reactiva en MapView (T5)
+│   │   └── index.tsx            # Redirección inicial
+│   ├── foto/
+│   │   └── [id].tsx             # Pantalla CRUD detalle, notas y álbum (C3)
+│   └── _layout.tsx              # Root Layout con migrador useMigrations (T2)
+├── components/
+│   ├── CameraLevelIndicator.tsx # Horizonte artificial con DeviceMotion
+│   └── PermissionPrimer.tsx     # Diálogo de recuperación de permisos bloqueados
+├── db/
+│   ├── client.ts                # Conexión openDatabaseSync y PRAGMA foreign_keys
+│   ├── schema.ts                # Esquema Drizzle: photos y albums (C1, C2)
+│   └── repositories/
+│       ├── photos.ts            # Repositorio desacoplado de fotos (T3)
+│       └── albums.ts            # Repositorio desacoplado de álbumes
+├── drizzle/                     # Migraciones versionadas generadas por drizzle-kit
+│   ├── 0000_absent_blindfold.sql# Migración inicial
+│   ├── 0001_absent_patch.sql    # Segunda migración con relaciones y campos
+│   └── migrations.js            # Bundle de migraciones para Expo
+├── hooks/
+│   ├── usePhotos.ts             # Hook reactivo de fotos con useLiveQuery (T4)
+│   ├── useAlbums.ts             # Hook reactivo de álbumes
+│   ├── useCamera.ts             # Cámara con CameraView
+│   ├── useCameraLevel.ts        # Sensor de nivelación
+│   ├── useGeoLocation.ts        # Seguimiento GPS
+│   └── useShake.ts              # Sensor de movimiento
+├── services/
+│   └── photoFiles.ts            # Persistencia física de archivos con Expo FileSystem (C5)
+├── types/
+│   ├── geo.ts                   # Tipos de coordenadas y permisos
+│   └── declarations.d.ts        # Tipado de módulos .sql y migrations.js
+├── AI-LOG.md                    # Registro de auditoría de IA (Semanas 6 y 7)
+├── babel.config.js              # Plugin inline-import para .sql
+├── metro.config.js              # Soporte de extensión sql en Metro
+├── drizzle.config.ts            # Configuración de Drizzle Kit
+└── app.json                     # Configuración de plugins nativos
+```
 
 ---
 
-## 🚀 Ejecución del Proyecto
+## 🚀 Instrucciones de Ejecución
 
 1. **Instalar dependencias:**
    ```bash
    npm install
    ```
 
-2. **Iniciar el servidor de desarrollo de Expo:**
+2. **Ejecutar el proyecto con caché limpia:**
    ```bash
-   npx expo start
+   npx expo start -c
    ```
 
-3. **Abrir en dispositivo físico:**
-   - Abre la aplicación **Expo Go** en Android o escanea el código QR con la cámara en iOS.
-   - *Nota:* Si estás en una red WiFi con aislamiento de clientes, usa el modo túnel:
-     ```bash
-     npx expo start --tunnel
-     ```
+3. **Verificación de tipos estricta:**
+   ```bash
+   npx tsc --noEmit
+   ```
