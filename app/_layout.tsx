@@ -9,6 +9,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import migrations from '@/drizzle/migrations';
 import { db } from '@/db/client';
+import { AuthProvider } from '@/context/AuthContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -59,7 +60,11 @@ export default function RootLayout() {
     );
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
+  );
 }
 
 function RootLayoutNav() {
@@ -75,6 +80,16 @@ function RootLayoutNav() {
             presentation: 'card',
             headerShown: true,
             title: 'Detalle de Foto',
+            headerStyle: { backgroundColor: '#0a0a0a' },
+            headerTintColor: '#ffffff',
+          }}
+        />
+        <Stack.Screen
+          name="auth"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Respaldo y Cuenta',
             headerStyle: { backgroundColor: '#0a0a0a' },
             headerTintColor: '#ffffff',
           }}

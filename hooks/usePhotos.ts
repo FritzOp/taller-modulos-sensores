@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { photosRepo, type PhotoInput } from '@/db/repositories/photos';
 import { persistPhoto } from '@/services/photoFiles';
+import { useAuth } from '@/context/AuthContext';
+import { syncManager } from '@/services/syncManager';
 import type { Coords } from '@/types/geo';
 
 export interface PhotoFilterOptions {
@@ -20,48 +22,78 @@ export interface AddPhotoInput {
 }
 
 export function usePhotos(filters?: PhotoFilterOptions) {
+  const { userId, isGuest } = useAuth();
   const search = filters?.search;
   const albumId = filters?.albumId;
   const onlyFavorites = filters?.onlyFavorites;
 
+  // Consultas reactivas segregadas por usuario
   const { data: photos = [], error } = useLiveQuery(
-    photosRepo.listQuery(search, albumId, onlyFavorites),
-    [search, albumId, onlyFavorites]
+    photosRepo.listQuery(userId, search, albumId, onlyFavorites),
+    [userId, search, albumId, onlyFavorites]
   );
 
   const { data: photosWithLocation = [] } = useLiveQuery(
-    photosRepo.withLocationQuery()
+    photosRepo.withLocationQuery(userId),
+    [userId]
   );
 
-  const addPhoto = useCallback(async (input: AddPhotoInput) => {
-    // C5: Copy file from cache to permanent documents directory
-    const permanentUri = persistPhoto(input.uri);
+  const addPhoto = useCallback(
+    async (input: AddPhotoInput) => {
+      // 1. Persistencia física en el sistema de archivos permanente
+      const permanentUri = persistPhoto(input.uri);
 
-    const payload: PhotoInput = {
-      uri: permanentUri,
-      latitude: input.coords?.latitude ?? null,
-      longitude: input.coords?.longitude ?? null,
-      accuracy: input.coords?.accuracy ?? null,
-      source: input.source,
-      albumId: input.albumId ?? null,
-      note: input.note ?? null,
-      favorite: input.favorite ?? false,
-    };
+      const payload: PhotoInput = {
+        userId,
+        uri: permanentUri,
+        latitude: input.coords?.latitude ?? null,
+        longitude: input.coords?.longitude ?? null,
+        accuracy: input.coords?.accuracy ?? null,
+        source: input.source,
+        albumId: input.albumId ?? null,
+        note: input.note ?? null,
+        favorite: input.favorite ?? false,
+        syncStatus: 'pending',
+      };
 
-    await photosRepo.create(payload);
-  }, []);
+      // 2. Inserción local en SQLite
+      await photosRepo.create(payload);
 
-  const removePhoto = useCallback(async (id: number) => {
-    await photosRepo.remove(id);
-  }, []);
+      // 3. Si el usuario está autenticado, intentar respaldo inmediato en segundo plano
+      if (!isGuest) {
+        syncManager.syncPendingUploads(userId).catch(() => {});
+      }
+    },
+    [userId, isGuest]
+  );
 
-  const updatePhoto = useCallback(async (id: number, data: Partial<PhotoInput>) => {
-    await photosRepo.update(id, data);
-  }, []);
+  const removePhoto = useCallback(
+    async (id: number) => {
+      await photosRepo.remove(id, userId);
+      // Intentar procesar la eliminación remota en segundo plano
+      if (!isGuest) {
+        syncManager.syncPendingDeletions(userId).catch(() => {});
+      }
+    },
+    [userId, isGuest]
+  );
+
+  const updatePhoto = useCallback(
+    async (id: number, data: Partial<PhotoInput>) => {
+      await photosRepo.update(id, data);
+      if (!isGuest) {
+        syncManager.syncPendingUploads(userId).catch(() => {});
+      }
+    },
+    [userId, isGuest]
+  );
 
   const clearAll = useCallback(async () => {
-    await photosRepo.clearAll();
-  }, []);
+    await photosRepo.clearAll(userId);
+    if (!isGuest) {
+      syncManager.syncPendingDeletions(userId).catch(() => {});
+    }
+  }, [userId, isGuest]);
 
   return {
     photos,

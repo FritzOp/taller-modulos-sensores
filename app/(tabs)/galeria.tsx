@@ -13,6 +13,7 @@ import {
 import { router } from 'expo-router';
 import { usePhotos } from '@/hooks/usePhotos';
 import { useAlbums } from '@/hooks/useAlbums';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 
 const { width } = Dimensions.get('window');
 const COLUMN_WIDTH = (width - 48) / 2;
@@ -31,24 +32,26 @@ export default function GaleriaScreen() {
   const { albums, createAlbum } = useAlbums();
 
   const handleCreateAlbum = () => {
-    Alert.prompt
-      ? Alert.prompt(
-          'Nuevo Álbum',
-          'Ingresa el nombre del álbum:',
-          async (name) => {
-            if (name && name.trim()) {
-              try {
-                await createAlbum(name.trim());
-              } catch (e: any) {
-                Alert.alert('Error', e.message ?? 'No se pudo crear el álbum');
-              }
+    if (Alert.prompt) {
+      Alert.prompt(
+        'Nuevo Álbum',
+        'Ingresa el nombre del álbum:',
+        async (name) => {
+          if (name && name.trim()) {
+            try {
+              await createAlbum(name.trim());
+            } catch (e: any) {
+              Alert.alert('Error', e.message ?? 'No se pudo crear el álbum');
             }
           }
-        )
-      : (async () => {
-          const defaultName = `Álbum ${albums.length + 1}`;
-          await createAlbum(defaultName);
-        })();
+        }
+      );
+    } else {
+      (async () => {
+        const defaultName = `Álbum ${albums.length + 1}`;
+        await createAlbum(defaultName);
+      })();
+    }
   };
 
   const confirmDelete = (id: number) => {
@@ -64,6 +67,11 @@ export default function GaleriaScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Cloud & User Sync Status Header */}
+      <View style={styles.headerBar}>
+        <SyncStatusBadge />
+      </View>
+
       {/* Search Input */}
       <View style={styles.searchContainer}>
         <Text style={styles.searchIcon}>🔍</Text>
@@ -165,11 +173,22 @@ export default function GaleriaScreen() {
               </View>
             ) : null}
 
-            {/* GPS or No-GPS Indicator */}
-            <View style={styles.locationBadge}>
-              <Text style={styles.locationBadgeText}>
-                {item.latitude !== null ? '📍' : '⚠️'}
-              </Text>
+            {/* Top Left Badges: GPS + Cloud Sync */}
+            <View style={styles.topLeftBadges}>
+              <View style={styles.badgeItem}>
+                <Text style={styles.badgeText}>
+                  {item.latitude !== null ? '📍' : '⚠️'}
+                </Text>
+              </View>
+              <View style={styles.badgeItem}>
+                <Text style={styles.badgeText}>
+                  {item.syncStatus === 'synced'
+                    ? '☁️'
+                    : item.syncStatus === 'uploading'
+                    ? '🔄'
+                    : '⏳'}
+                </Text>
+              </View>
             </View>
 
             {/* Card Footer */}
@@ -202,6 +221,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0a0a0a',
     paddingTop: 8,
+  },
+  headerBar: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    alignItems: 'flex-start',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -309,22 +333,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    zIndex: 2,
   },
   favBadgeText: {
     color: '#fbbf24',
     fontSize: 12,
     fontWeight: 'bold',
   },
-  locationBadge: {
+  topLeftBadges: {
     position: 'absolute',
     top: 8,
     left: 8,
+    flexDirection: 'row',
+    gap: 4,
+    zIndex: 2,
+  },
+  badgeItem: {
     backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 12,
-    paddingHorizontal: 6,
+    borderRadius: 10,
+    paddingHorizontal: 5,
     paddingVertical: 2,
   },
-  locationBadgeText: {
+  badgeText: {
     fontSize: 10,
   },
   cardFooter: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,11 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { photosRepo } from '@/db/repositories/photos';
 import { useAlbums } from '@/hooks/useAlbums';
-
-const { width } = Dimensions.get('window');
+import { syncManager } from '@/services/syncManager';
 
 export default function FotoDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,7 +28,7 @@ export default function FotoDetalleScreen() {
 
   const { albums } = useAlbums();
 
-  const loadPhoto = async () => {
+  const loadPhoto = useCallback(async () => {
     if (!photoId) return;
     try {
       const data = await photosRepo.findById(photoId);
@@ -44,17 +42,18 @@ export default function FotoDetalleScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [photoId]);
 
   useEffect(() => {
     loadPhoto();
-  }, [photoId]);
+  }, [loadPhoto]);
 
   const toggleFavorite = async () => {
     if (!photo) return;
     const newFav = !photo.favorite;
     await photosRepo.update(photo.id, { favorite: newFav });
-    setPhoto((prev) => (prev ? { ...prev, favorite: newFav } : null));
+    setPhoto((prev) => (prev ? { ...prev, favorite: newFav, syncStatus: 'pending' } : null));
+    syncManager.syncPendingUploads(photo.userId).catch(() => {});
   };
 
   const handleSaveNote = async () => {
@@ -63,7 +62,8 @@ export default function FotoDetalleScreen() {
     try {
       const trimmed = noteText.trim() || null;
       await photosRepo.update(photo.id, { note: trimmed });
-      setPhoto((prev) => (prev ? { ...prev, note: trimmed } : null));
+      setPhoto((prev) => (prev ? { ...prev, note: trimmed, syncStatus: 'pending' } : null));
+      syncManager.syncPendingUploads(photo.userId).catch(() => {});
       Alert.alert('Guardado', 'Nota actualizada con éxito');
     } finally {
       setSavingNote(false);
@@ -80,9 +80,11 @@ export default function FotoDetalleScreen() {
             ...prev,
             albumId,
             albumName: selected ? selected.name : null,
+            syncStatus: 'pending',
           }
         : null
     );
+    syncManager.syncPendingUploads(photo.userId).catch(() => {});
   };
 
   const handleDelete = () => {
@@ -96,7 +98,8 @@ export default function FotoDetalleScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            await photosRepo.remove(photo.id);
+            await photosRepo.remove(photo.id, photo.userId);
+            syncManager.syncPendingDeletions(photo.userId).catch(() => {});
             router.back();
           },
         },
@@ -149,6 +152,32 @@ export default function FotoDetalleScreen() {
             {photo.latitude !== null && photo.longitude !== null
               ? `${photo.latitude.toFixed(5)}, ${photo.longitude.toFixed(5)} (±${Math.round(photo.accuracy ?? 0)}m)`
               : '⚠️ Sin geolocalización'}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Estado en la Nube:</Text>
+          <Text style={styles.metaValue}>
+            {photo.syncStatus === 'synced'
+              ? '☁️ Respaldo al día'
+              : photo.syncStatus === 'uploading'
+              ? '🔄 Subiendo a Supabase...'
+              : photo.syncStatus === 'error'
+              ? '❌ Error al subir'
+              : '⏳ Pendiente de subida'}
+          </Text>
+        </View>
+        {photo.lastSyncedAt && (
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Último respaldo:</Text>
+            <Text style={styles.metaValue}>
+              {new Date(photo.lastSyncedAt).toLocaleString('es-CO')}
+            </Text>
+          </View>
+        )}
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Partición de datos:</Text>
+          <Text style={styles.metaValue}>
+            {photo.userId === 'local_guest' ? '👤 Invitado local' : '🔐 Cuenta Supabase'}
           </Text>
         </View>
       </View>

@@ -1,13 +1,18 @@
-import { and, desc, eq, isNotNull, like, SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, like, SQL } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { albums, photos, type NewPhoto } from '@/db/schema';
+import { albums, photos, syncQueue, type NewPhoto } from '@/db/schema';
 import { deletePhotoFile } from '@/services/photoFiles';
 
 export type PhotoInput = Omit<NewPhoto, 'id' | 'createdAt'>;
 
 export const photosRepo = {
-  listQuery(search?: string, albumId?: number | null, onlyFavorites?: boolean) {
-    const conditions: SQL[] = [];
+  listQuery(
+    userId: string = 'local_guest',
+    search?: string,
+    albumId?: number | null,
+    onlyFavorites?: boolean
+  ) {
+    const conditions: SQL[] = [eq(photos.userId, userId)];
 
     if (search && search.trim().length > 0) {
       conditions.push(like(photos.note, `%${search.trim()}%`));
@@ -21,11 +26,10 @@ export const photosRepo = {
       conditions.push(eq(photos.favorite, true));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
     return db
       .select({
         id: photos.id,
+        userId: photos.userId,
         uri: photos.uri,
         latitude: photos.latitude,
         longitude: photos.longitude,
@@ -35,18 +39,23 @@ export const photosRepo = {
         albumName: albums.name,
         note: photos.note,
         favorite: photos.favorite,
+        remoteId: photos.remoteId,
+        remoteUrl: photos.remoteUrl,
+        syncStatus: photos.syncStatus,
+        lastSyncedAt: photos.lastSyncedAt,
         createdAt: photos.createdAt,
       })
       .from(photos)
       .leftJoin(albums, eq(photos.albumId, albums.id))
-      .where(whereClause)
+      .where(and(...conditions))
       .orderBy(desc(photos.createdAt));
   },
 
-  withLocationQuery() {
+  withLocationQuery(userId: string = 'local_guest') {
     return db
       .select({
         id: photos.id,
+        userId: photos.userId,
         uri: photos.uri,
         latitude: photos.latitude,
         longitude: photos.longitude,
@@ -56,18 +65,34 @@ export const photosRepo = {
         albumName: albums.name,
         note: photos.note,
         favorite: photos.favorite,
+        remoteId: photos.remoteId,
+        remoteUrl: photos.remoteUrl,
+        syncStatus: photos.syncStatus,
+        lastSyncedAt: photos.lastSyncedAt,
         createdAt: photos.createdAt,
       })
       .from(photos)
       .leftJoin(albums, eq(photos.albumId, albums.id))
-      .where(and(isNotNull(photos.latitude), isNotNull(photos.longitude)))
+      .where(
+        and(
+          eq(photos.userId, userId),
+          isNotNull(photos.latitude),
+          isNotNull(photos.longitude)
+        )
+      )
       .orderBy(desc(photos.createdAt));
   },
 
-  async findById(id: number) {
+  async findById(id: number, userId?: string) {
+    const conditions = [eq(photos.id, id)];
+    if (userId) {
+      conditions.push(eq(photos.userId, userId));
+    }
+
     return db
       .select({
         id: photos.id,
+        userId: photos.userId,
         uri: photos.uri,
         latitude: photos.latitude,
         longitude: photos.longitude,
@@ -77,12 +102,41 @@ export const photosRepo = {
         albumName: albums.name,
         note: photos.note,
         favorite: photos.favorite,
+        remoteId: photos.remoteId,
+        remoteUrl: photos.remoteUrl,
+        syncStatus: photos.syncStatus,
+        lastSyncedAt: photos.lastSyncedAt,
         createdAt: photos.createdAt,
       })
       .from(photos)
       .leftJoin(albums, eq(photos.albumId, albums.id))
-      .where(eq(photos.id, id))
+      .where(and(...conditions))
       .get();
+  },
+
+  async getPendingSyncPhotos(userId: string) {
+    return db
+      .select()
+      .from(photos)
+      .where(
+        and(
+          eq(photos.userId, userId),
+          inArray(photos.syncStatus, ['pending', 'error'])
+        )
+      )
+      .all();
+  },
+
+  async getPendingDeletions(userId: string) {
+    return db
+      .select()
+      .from(syncQueue)
+      .where(eq(syncQueue.userId, userId))
+      .all();
+  },
+
+  async removeSyncQueueItem(id: number) {
+    return db.delete(syncQueue).where(eq(syncQueue.id, id));
   },
 
   async create(data: PhotoInput) {
@@ -90,22 +144,85 @@ export const photosRepo = {
   },
 
   async update(id: number, data: Partial<PhotoInput>) {
+    // Whenever content changes, mark as pending sync
+    const patch = {
+      ...data,
+      syncStatus: 'pending' as const,
+    };
+    return db.update(photos).set(patch).where(eq(photos.id, id));
+  },
+
+  async updateSyncMetadata(
+    id: number,
+    data: {
+      remoteId?: string;
+      remoteUrl?: string;
+      syncStatus: 'synced' | 'pending' | 'uploading' | 'error';
+      lastSyncedAt?: Date;
+    }
+  ) {
     return db.update(photos).set(data).where(eq(photos.id, id));
   },
 
-  async remove(id: number) {
-    const existing = await db.select().from(photos).where(eq(photos.id, id)).get();
+  async remove(id: number, userId: string = 'local_guest') {
+    const existing = await db
+      .select()
+      .from(photos)
+      .where(and(eq(photos.id, id), eq(photos.userId, userId)))
+      .get();
+
     if (existing) {
+      // Coherent deletion: if it was synced to cloud, register in syncQueue
+      if (existing.remoteId) {
+        let storagePath = null;
+        if (existing.remoteUrl) {
+          // Extract storage path from public URL if possible
+          const parts = existing.remoteUrl.split('geocam-photos/');
+          if (parts.length > 1) {
+            storagePath = decodeURIComponent(parts[1]);
+          }
+        }
+
+        await db.insert(syncQueue).values({
+          userId,
+          entityType: 'photo',
+          remoteId: existing.remoteId,
+          storagePath,
+        });
+      }
+
       deletePhotoFile(existing.uri);
     }
-    return db.delete(photos).where(eq(photos.id, id));
+
+    return db.delete(photos).where(and(eq(photos.id, id), eq(photos.userId, userId)));
   },
 
-  async clearAll() {
-    const all = await db.select().from(photos).all();
+  async clearAll(userId: string = 'local_guest') {
+    const all = await db
+      .select()
+      .from(photos)
+      .where(eq(photos.userId, userId))
+      .all();
+
     for (const item of all) {
+      if (item.remoteId) {
+        let storagePath = null;
+        if (item.remoteUrl) {
+          const parts = item.remoteUrl.split('geocam-photos/');
+          if (parts.length > 1) {
+            storagePath = decodeURIComponent(parts[1]);
+          }
+        }
+        await db.insert(syncQueue).values({
+          userId,
+          entityType: 'photo',
+          remoteId: item.remoteId,
+          storagePath,
+        });
+      }
       deletePhotoFile(item.uri);
     }
-    return db.delete(photos);
+
+    return db.delete(photos).where(eq(photos.userId, userId));
   },
 };

@@ -1,8 +1,3 @@
-================================================================================
-TALLER INTEGRADOR 2 - SEMANA 7
-Base de Datos Local Offline-First con Drizzle ORM y SQLite
-================================================================================
-
 INTEGRANTES:
 - Deivis Magdaniel
 - Edgar Zuñiga
@@ -10,37 +5,43 @@ INTEGRANTES:
 REPOSITORIO DE GITHUB:
 https://github.com/FritzOp/taller-modulos-sensores
 
-RAMA PRINCIPAL:
-master
-
-================================================================================
-RESUMEN DEL ENTREGABLE:
-================================================================================
 1. MIGRACIONES VERSIONADAS (drizzle/):
-   - 0000_absent_blindfold.sql: Tabla inicial 'photos' con geolocalización y timestamps.
-   - 0001_absent_patch.sql: Tabla 'albums' (C1) y columnas 'album_id' (FK set null), 
+   0000_absent_blindfold.sql: Tabla inicial 'photos' con geolocalización y timestamps.
+   0001_absent_patch.sql: Tabla 'albums' (C1) y columnas 'album_id' (FK set null), 
      'note' (texto) y 'favorite' (booleano) en 'photos' (C2).
-   - drizzle/migrations.js: Bundle registrado y ejecutado en arranque con useMigrations.
+   drizzle/migrations.js: Bundle registrado y ejecutado en arranque con useMigrations.
 
 2. ARQUITECTURA OFFLINE-FIRST:
-   - db/client.ts: Conexión SQLite con enableChangeListener: true y PRAGMA foreign_keys = ON.
-   - db/repositories/: photosRepo y albumsRepo desacoplados para consultas reactivas.
-   - hooks/: usePhotos.ts y useAlbums.ts con useLiveQuery para reactividad automática.
+   db/client.ts: Conexión SQLite con enableChangeListener: true y PRAGMA foreign_keys = ON.
+   db/repositories/: photosRepo y albumsRepo desacoplados para consultas reactivas.
+   hooks/: usePhotos.ts y useAlbums.ts con useLiveQuery para reactividad automática.
 
 3. CRUD COMPLETO Y FILTROS:
-   - app/foto/[id].tsx: Pantalla de detalle con edición de nota, toggle favorito, 
+   app/foto/[id].tsx: Pantalla de detalle con edición de nota, toggle favorito, 
      cambio de álbum y borrado permanente (C3).
-   - app/(tabs)/galeria.tsx: Buscador reactivo por nota (like), selector de álbumes, 
+   app/(tabs)/galeria.tsx: Buscador reactivo por nota (like), selector de álbumes, 
      creador de álbumes y filtro de favoritas (C4).
-   - app/(tabs)/geocam.tsx: Captura con persistencia física y sensor de nivelación.
-   - app/(tabs)/mapa.tsx: Mapa reactivo con pines, tooltips y drawer sin ubicación.
+   app/(tabs)/geocam.tsx: Captura con persistencia física y sensor de nivelación.
+   app/(tabs)/mapa.tsx: Mapa reactivo con pines, tooltips y drawer sin ubicación.
 
 4. ALMACENAMIENTO PERMANENTE (services/photoFiles.ts):
-   - Las fotos se transfieren de la caché al directorio permanente de la app 
+   Las fotos se transfieren de la caché al directorio permanente de la app 
      (Paths.document/photos) usando expo-file-system (C5).
-   - Al eliminar el registro, se elimina el archivo físico.
+   Al eliminar el registro, se elimina el archivo físico.
 
-5. DOCUMENTACIÓN:
-   - README.md: Diagrama Entidad-Relación (Mermaid), arquitectura y evidencia visual.
-   - AI-LOG.md: Registro de prompts, código generado vs modificado y alucinaciones detectadas.
-================================================================================
+5. RESPALDO CONFIABLE Y SINCRONIZACIÓN EN LA NUBE CON SUPABASE:
+   - Sincronización de Pendientes: Cola asíncrona de subida que transfiere archivos 
+     al bucket 'geocam-photos' y metadatos a PostgreSQL con control de estados
+     ('pending', 'uploading', 'synced', 'error') y verificación de red vía expo-network.
+   - Borrado Coherente: Cola local 'sync_queue' (tombstone) que purga el archivo en 
+     Supabase Storage y la fila en PostgreSQL, propagando a otros dispositivos mediante 
+     la tabla 'geocam_deleted_records'.
+   - Consulta de la Nube: Descarga y restauración automática de fotos respaldadas en 
+     Supabase hacia el almacenamiento local permanente con File.downloadFileAsync.
+   - Datos Locales Separados por Usuario: Campo 'user_id' en todas las tablas locales y 
+     remotas, soporte de Modo Invitado ('local_guest') 100% offline, aislamiento de 
+     consultas con Drizzle y políticas Row Level Security (RLS) en Supabase.
+   - Migración 0002 (drizzle/0002_steep_slyde.sql): Nuevos campos de sincronización y tabla 
+     'sync_queue' aplicados automáticamente en el arranque de la app.
+   - Script SQL Supabase: supabase_schema.sql en la raíz para aprovisionar tablas, 
+     bucket y políticas RLS.

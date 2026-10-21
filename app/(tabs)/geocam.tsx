@@ -9,9 +9,20 @@ import { useCameraLevel } from '@/hooks/useCameraLevel';
 import { usePhotos } from '@/hooks/usePhotos';
 import { PermissionPrimer } from '@/components/PermissionPrimer';
 import { CameraLevelIndicator } from '@/components/CameraLevelIndicator';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 
 export default function GeoCamScreen() {
-  const cam = useCamera();
+  const {
+    cameraRef,
+    permissionState,
+    requestPermission,
+    openSettings,
+    facing,
+    toggleFacing,
+    onCameraReady,
+    takePhoto,
+    isCapturing,
+  } = useCamera();
   const geo = useGeoLocation({ watch: true });
   const level = useCameraLevel();
   const { photos, addPhoto, clearAll } = usePhotos();
@@ -30,7 +41,7 @@ export default function GeoCamScreen() {
 
   const lastPhoto = photos[0] ?? null;
 
-  if (cam.permissionState === 'checking') {
+  if (permissionState === 'checking') {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#10b981" />
@@ -38,20 +49,20 @@ export default function GeoCamScreen() {
     );
   }
 
-  if (cam.permissionState !== 'granted') {
+  if (permissionState !== 'granted') {
     return (
       <PermissionPrimer
         title="GeoCam necesita tu cámara"
         description="La usamos solo para tomar fotos que tú decidas guardar."
-        state={cam.permissionState}
-        onRequest={cam.requestPermission}
-        onOpenSettings={cam.openSettings}
+        state={permissionState}
+        onRequest={requestPermission}
+        onOpenSettings={openSettings}
       />
     );
   }
 
   const handleCapture = async () => {
-    const photo = await cam.takePhoto();
+    const photo = await takePhoto();
     if (!photo) return;
 
     // Graceful degradation: without location permission, coords stays null
@@ -92,10 +103,10 @@ export default function GeoCamScreen() {
     <View style={styles.container}>
       {/* CameraView without children: controls rendered as absolute siblings */}
       <CameraView
-        ref={cam.cameraRef}
+        ref={cameraRef}
         style={StyleSheet.absoluteFill}
-        facing={cam.facing}
-        onCameraReady={cam.onCameraReady}
+        facing={facing}
+        onCameraReady={onCameraReady}
       />
 
       {/* Location banner: request in context without blocking camera */}
@@ -124,6 +135,11 @@ export default function GeoCamScreen() {
         </View>
       )}
 
+      {/* Cloud & User Sync Status Badge */}
+      <View style={styles.topRightSync}>
+        <SyncStatusBadge />
+      </View>
+
       {/* Reto Opcional: Indicador de nivel artificial para nivelar la cámara */}
       <CameraLevelIndicator
         angle={level.angle}
@@ -145,18 +161,18 @@ export default function GeoCamScreen() {
         {/* Capture button */}
         <Pressable
           onPress={handleCapture}
-          disabled={cam.isCapturing}
+          disabled={isCapturing}
           style={styles.captureButton}
           accessibilityLabel="Tomar foto"
         >
           <View
-            style={[styles.captureInner, cam.isCapturing ? styles.captureInnerCapturing : null]}
+            style={[styles.captureInner, isCapturing ? styles.captureInnerCapturing : null]}
           />
         </Pressable>
 
         {/* Camera switch button */}
         <Pressable
-          onPress={cam.toggleFacing}
+          onPress={toggleFacing}
           style={styles.iconButton}
           accessibilityLabel="Cambiar cámara"
         >
@@ -220,6 +236,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 12,
     paddingVertical: 8,
+    zIndex: 10,
+  },
+  topRightSync: {
+    position: 'absolute',
+    right: 16,
+    top: 56,
     zIndex: 10,
   },
   coordsText: {

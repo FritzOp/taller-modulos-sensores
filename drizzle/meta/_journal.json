@@ -15,6 +15,13 @@
       "when": 1791806414441,
       "tag": "0001_absent_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792589881064,
+      "tag": "0002_steep_slyde",
+      "breakpoints": true
     }
   ]
 }

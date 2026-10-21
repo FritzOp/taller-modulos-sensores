@@ -1,8 +1,70 @@
 # Registro de Auditoría de IA (AI-LOG)
 
 **Estudiante(s):** Taller Integrador 2
-**Proyecto:** GeoCam — Módulos Nativos y Base de Datos Local Offline-First
+**Proyecto:** GeoCam — Módulos Nativos, SQLite Offline-First y Respaldo Confiable en Supabase
 **Integrantes:** Deivis Magdaniel, Edgar Zuñiga
+
+---
+
+# Extensión: Respaldo Confiable y Sincronización en la Nube con Supabase
+
+## 1. Prompts Utilizados
+
+### Prompt 1
+> "Convierte la subida manual del taller en un respaldo confiable: sincronización de pendientes, borrado coherente, consulta de la nube y datos locales separados por usuario. Esto para Supabase como hicimos con el otro proyecto."
+
+### Prompt 2
+> "Diseña una migración con Drizzle ORM que agregue partición por usuario (userId), columnas de sincronización con la nube (remoteId, remoteUrl, syncStatus, lastSyncedAt) y una tabla sync_queue para borrado coherente en estado desconectado."
+
+### Prompt 3
+> "Implementa en TypeScript un syncManager que maneje subida de archivos binarios a Supabase Storage con fetch(uri).blob(), upsert en PostgreSQL y descarga persistente al sistema de archivos local mediante expo-file-system."
+
+---
+
+## 2. Código Generado vs. Código Modificado
+
+### Manejo de Sesión y Partición Multi-usuario (`context/AuthContext.tsx` y `db/repositories/`)
+- **¿Qué generó la IA?:**
+  Un cliente de Supabase estándar sin persistencia en AsyncStorage que ejecutaba consultas globales sin filtrar por usuario en la base de datos local SQLite.
+- **¿Qué modifiqué/corregí?:**
+  - Se configuró el cliente Supabase con `auth.storage = AsyncStorage` y `autoRefreshToken: true` para retener la sesión tras recargas.
+  - Se diseñó un esquema híbrido con `userId` por defecto en `'local_guest'`, permitiendo navegación completa sin login.
+  - Todas las consultas del repositorio local (`photosRepo`, `albumsRepo`) se aislaron agregando cláusulas `eq(photos.userId, userId)` para que las fotos de distintos usuarios y del invitado nunca se mezclen.
+
+### Borrado Coherente Offline (`db/schema.ts` y `services/syncManager.ts`)
+- **¿Qué generó la IA?:**
+  Una eliminación que solo ejecutaba `supabase.from('geocam_photos').delete()`. Si el usuario borraba una foto sin conexión a internet, el registro local se eliminaba pero la foto permanecía para siempre en Supabase Storage y en PostgreSQL.
+- **¿Qué modifiqué/corregí?:**
+  - Se introdujo una tabla local `sync_queue` (tombstone de borrado). Al eliminar un elemento sincronizado, se encola con su `remoteId` y `storagePath`.
+  - El `syncManager` procesa la cola de borrados al recuperar conectividad, eliminando el binario del Storage, borrando el registro de PostgreSQL e insertando un evento en `geocam_deleted_records` para propagar el borrado a otros dispositivos del usuario.
+
+### Carga de Binarios a Supabase Storage (`services/syncManager.ts` y `services/photoFiles.ts`)
+- **¿Qué generó la IA?:**
+  Llamadas usando `fs.readFileSync` (módulo exclusivo de Node.js que falla en React Native) o `FormData` incompatible con el cliente de Supabase Storage.
+- **¿Qué modifiqué/corregí?:**
+  Se adoptó la técnica nativa compatible con React Native y Supabase:
+  ```ts
+  const fileResponse = await fetch(photo.uri);
+  const fileBlob = await fileResponse.blob();
+  await supabase.storage.from('geocam-photos').upload(storagePath, fileBlob, { contentType: 'image/jpeg', upsert: true });
+  ```
+  Para la descarga se utilizó la API moderna `File.downloadFileAsync(remoteUrl, localFile)` de Expo SDK 57.
+
+---
+
+## 3. Alucinaciones o Errores Detectados
+
+1. **Uso de Node.js Buffer / FileSystem de Node:**
+   - *Alucinación:* La IA intentó importar `Buffer` y `fs` para manipular los binarios de fotos hacia Supabase Storage.
+   - *Corrección técnica:* En React Native se debe utilizar el API Web estándar `fetch(uri).blob()` o `expo-file-system`.
+
+2. **Acceso a Refs durante el Render en React 19 / Expo 57 (`react-hooks/refs`):**
+   - *Alucinación / Error de Linter:* Al retornar `{ cameraRef, ... }` desde `useCamera`, el nuevo linter de React Compiler detectó acceso a propiedades del objeto devuelto durante el render de JSX.
+   - *Corrección técnica:* Se desestructuraron las propiedades del hook en el componente (`const { cameraRef, facing, isCapturing... } = useCamera()`) y se enlazaron limpiamente sin tics en el render.
+
+3. **Incompatibilidad de políticas RLS en Supabase Storage:**
+   - *Alucinación:* La IA generó políticas de Storage usando `auth.uid() = owner`, ignorando que en el bucket `storage.objects` el dueño no siempre coincide con el UID si el archivo se subió con tokens públicos.
+   - *Corrección técnica:* Se diseñó la política basada en carpetas organizadas por usuario: `(storage.foldername(name))[1] = auth.uid()::text`, garantizando aislamiento estricto y compatible.
 
 ---
 
