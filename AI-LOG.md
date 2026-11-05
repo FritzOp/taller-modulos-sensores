@@ -6,6 +6,51 @@
 
 ---
 
+# Semana 9: TanStack Query y Sincronización Offline-First
+
+**Estudiante(s):** Deivis Magdaniel, Edgar Zuñiga
+**Semana:** 9
+**Proyecto:** GeoCam sincronizada, Taller Integrador 2
+**Herramienta:** Claude Code (Claude Opus 5.5)
+
+## 1. Prompts Utilizados
+
+- "completa la sincronización con los borrados, agrega el feed paginado de la nube y documenta con pruebas que el diseño funciona. Entrega el enlace a tu repositorio de GitHub con el feed de la nube consumido con TanStack Query, con manejadores de UI completos, más la sincronización en dos sentidos entre SQLite y Supabase." (junto con la Guía de la Semana 9 y los dos proyectos de ejemplo del profesor)
+- "y despues mejoras el diseño de la app con animaciones y mejor UI"
+- "y despues revisa como se ve en celular con el emulador de android"
+- "actualiza" (la IA lo interpretó como actualizar el proyecto al SDK 58, después de que Expo Go rechazó el SDK 57)
+
+## 2. Código Generado vs. Código Modificado
+
+- **¿Qué generó la IA?:** La migración de Supabase y de SQLite, `services/sync.ts`, `services/syncRules.ts`, `services/cloudPhotos.ts`, los hooks `useSync`, `useCloudFeed` y `usePhoto`, las pantallas Nube y Sincronización, el rediseño de todas las pantallas, las pruebas automáticas y este registro.
+- **¿Qué cambió frente al ejemplo del profesor?:**
+  - Conservó los nombres de este proyecto (`geocam_photos`, bucket `geocam-photos`) y la separación por usuario, que el ejemplo no tiene.
+  - Reemplazó `syncManager.ts`, que subía antes de bajar, usaba `new Date()` como marca de sincronización y sobrescribía siempre la nota local con la de la nube.
+  - Reemplazó la cola `sync_queue` y la tabla `geocam_deleted_records` por borrado lógico con `deletedAt`.
+  - Pasó el bucket de público a privado con URLs firmadas.
+- **Revisión pendiente por parte de los estudiantes:** las pruebas en dos teléfonos reales y el GIF no los puede hacer la IA. La columna correspondiente del README está marcada como pendiente.
+
+## 3. Alucinaciones o Errores Detectados
+
+Errores reales encontrados durante la sesión, con el comando o la prueba que los reveló:
+
+- **`$defaultFn` con `expo-crypto` en `db/schema.ts`.** Es lo que trae el ejemplo, pero en este proyecto `drizzle-kit generate` falló al cargar el esquema con un `TransformError`. El UUID se genera ahora en `photosRepo.create`.
+- **Lista que desaparecía al fallar una recarga.** El patrón de la guía muestra la lista solo con `status === 'success'`, pero en la versión 5 `status` pasa a `error` también cuando falla una recarga o la página siguiente, aunque ya haya datos. La pantalla decide por `feed.data !== undefined`.
+- **Hueco en el diseño al revivir una foto.** Con foto borrada en A y editada después en B, gana la edición, pero el archivo ya salió del bucket y B tiene `remotePath`, así que no lo volvería a subir. Se agregó la decisión `revive`.
+- **`react-test-renderer` no se pudo instalar con `expo install`.** Resolvió la versión 19.3.1, que exige React 19.3, y el proyecto usa 19.2.3. Se fijó `19.2.3`.
+- **Typecheck de las pruebas.** Con TypeScript 6, `types` ya no incluye todo por defecto y no encontraba `jest` ni `node`. Se declararon en `tsconfig.json`.
+- **Lint con Reanimated.** Asignar `sharedValue.value` falló con `react-hooks/immutability`. Se cambió a `.set()` y `.get()`.
+- **Lint en el detalle.** `setState` dentro de un `useEffect` para sincronizar la nota falló con `react-hooks/set-state-in-effect`. Se reemplazó por un borrador derivado (`noteDraft ?? photo.note`).
+- **Primera versión de la prueba 7.** Usaba `jest.resetModules()`, que creaba una segunda copia del servidor en memoria, y la prueba falló. Se cambió por una base en disco que se cierra y se vuelve a abrir.
+- **Primera prueba contra PostgreSQL.** El reporte salió vacío porque, con el rol `authenticated`, RLS oculta `storage.buckets` y concatenar `NULL` borra el texto. El valor se lee antes de cambiar de rol.
+- **Expo Go incompatible.** El Expo Go del emulador solo abre SDK 58 y el proyecto estaba en 57. Se actualizó a SDK 58: React Native 0.88, React 19.3 y Expo Router 58.
+- **La actualización rompió cosas que las pruebas o `tsc` revelaron.** `npm` falló con `ERESOLVE` por el lock anterior, y se regeneró. `Tabs` ya no acepta `initialRouteName`. `unstable_settings.initialRouteName` pasó a `anchor`. `Themed.tsx` y `useColorScheme.ts` tenían tipos antiguos. El mock oficial de Reanimated dejó de funcionar en Jest, y se escribió uno propio.
+- **Errores que solo se vieron en el emulador.** El botón "mi ubicación" del mapa quedaba debajo de la barra de estado, y se corrigió con `mapPadding`. El aviso de borrado le decía al invitado que la foto se borraría de la nube, y ahora depende de la cuenta.
+- **Herramienta de revisión desfasada.** Al manejar el emulador, el árbol de accesibilidad seguía mostrando la pantalla anterior y tardaba unos 10 s, así que algunos toques cayeron donde no era: en una prueba desaparecieron dos fotos en lugar de una. Con coordenadas fijas y capturas reales el borrado quitó exactamente una, y se agregó una prueba automática para ese caso.
+- **Comando demasiado largo.** Un solo script enorme falló con `ENAMETOOLONG` en Windows sin ejecutar nada. Se dividió en archivos.
+
+---
+
 # Extensión: Respaldo Confiable y Sincronización en la Nube con Supabase
 
 ## 1. Prompts Utilizados

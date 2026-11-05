@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
+import { queryClient } from '@/lib/queryClient';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 
 interface AuthContextType {
@@ -70,6 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isConfigured) {
       await supabase.auth.signOut();
     }
+    // El feed guardado en el teléfono es de esta cuenta: no debe quedar al cerrar sesión
+    queryClient.removeQueries({ queryKey: ['cloud'] });
+    queryClient.removeQueries({ queryKey: ['sync'] });
     setUser(null);
     setSession(null);
   };

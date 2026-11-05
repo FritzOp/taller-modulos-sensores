@@ -1,29 +1,46 @@
 import React, { useState } from 'react';
 import {
-  View,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  FlatList,
-  Pressable,
-  Image,
-  StyleSheet,
-  Alert,
-  Dimensions,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { usePhotos } from '@/hooks/usePhotos';
-import { useAlbums } from '@/hooks/useAlbums';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, ZoomIn } from 'react-native-reanimated';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SearchField } from '@/components/ui/SearchField';
+import { colors, radius, spacing, type } from '@/constants/theme';
+import { useAlbums } from '@/hooks/useAlbums';
+import { usePhotos } from '@/hooks/usePhotos';
+import { isPending } from '@/services/syncRules';
 
-const { width } = Dimensions.get('window');
-const COLUMN_WIDTH = (width - 48) / 2;
+const GUTTER = spacing.md;
 
 export default function GaleriaScreen() {
+  const { width } = useWindowDimensions();
+  const cardWidth = (width - spacing.lg * 2 - GUTTER) / 2;
+
   const [search, setSearch] = useState('');
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [creatingAlbum, setCreatingAlbum] = useState(false);
+  const [albumName, setAlbumName] = useState('');
 
-  const { photos, removePhoto } = usePhotos({
+  const { photos, removePhoto, deleteWarning } = usePhotos({
     search: search.trim() || undefined,
     albumId: selectedAlbumId,
     onlyFavorites,
@@ -31,33 +48,24 @@ export default function GaleriaScreen() {
 
   const { albums, createAlbum } = useAlbums();
 
-  const handleCreateAlbum = () => {
-    if (Alert.prompt) {
-      Alert.prompt(
-        'Nuevo Álbum',
-        'Ingresa el nombre del álbum:',
-        async (name) => {
-          if (name && name.trim()) {
-            try {
-              await createAlbum(name.trim());
-            } catch (e: any) {
-              Alert.alert('Error', e.message ?? 'No se pudo crear el álbum');
-            }
-          }
-        }
-      );
-    } else {
-      (async () => {
-        const defaultName = `Álbum ${albums.length + 1}`;
-        await createAlbum(defaultName);
-      })();
+  const closeAlbumDialog = () => {
+    setCreatingAlbum(false);
+    setAlbumName('');
+  };
+
+  const handleCreateAlbum = async () => {
+    try {
+      await createAlbum(albumName);
+      closeAlbumDialog();
+    } catch (e: any) {
+      Alert.alert('No se pudo crear el álbum', e.message ?? 'Inténtalo de nuevo.');
     }
   };
 
   const confirmDelete = (id: number) => {
     Alert.alert(
-      'Eliminar Foto',
-      '¿Deseas eliminar permanentemente esta foto y su archivo local?',
+      'Eliminar foto',
+      deleteWarning,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Eliminar', style: 'destructive', onPress: () => removePhoto(id) },
@@ -65,334 +73,255 @@ export default function GaleriaScreen() {
     );
   };
 
+  const hasFilters = !!search || selectedAlbumId !== null || onlyFavorites;
+
   return (
     <View style={styles.container}>
-      {/* Cloud & User Sync Status Header */}
-      <View style={styles.headerBar}>
+      <View style={styles.header}>
         <SyncStatusBadge />
+        <Text style={styles.count}>
+          {photos.length === 1 ? '1 foto' : `${photos.length} fotos`}
+        </Text>
       </View>
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por nota..."
-          placeholderTextColor="#71717a"
-          value={search}
-          onChangeText={setSearch}
-          clearButtonMode="while-editing"
-        />
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch('')} style={styles.clearSearchBtn}>
-            <Text style={styles.clearSearchText}>✕</Text>
-          </Pressable>
-        )}
-      </View>
+      <SearchField value={search} onChangeText={setSearch} placeholder="Buscar por nota..." />
 
-      {/* Filter Chips Bar */}
-      <View style={styles.filtersBar}>
-        {/* Favorite filter toggle */}
-        <Pressable
-          onPress={() => setOnlyFavorites((prev) => !prev)}
-          style={[styles.filterChip, onlyFavorites && styles.filterChipActiveGold]}
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.filterChipText, onlyFavorites && styles.filterChipTextActiveGold]}>
-            {onlyFavorites ? '★ Favoritas' : '☆ Favoritas'}
-          </Text>
-        </Pressable>
-
-        {/* All album chip */}
-        <Pressable
-          onPress={() => setSelectedAlbumId(null)}
-          style={[styles.filterChip, selectedAlbumId === null && styles.filterChipActive]}
-        >
-          <Text style={[styles.filterChipText, selectedAlbumId === null && styles.filterChipTextActive]}>
-            Todos
-          </Text>
-        </Pressable>
-
-        {/* Dynamic Album Chips */}
-        {albums.map((album) => (
-          <Pressable
-            key={album.id}
-            onPress={() =>
-              setSelectedAlbumId(selectedAlbumId === album.id ? null : album.id)
-            }
-            style={[styles.filterChip, selectedAlbumId === album.id && styles.filterChipActive]}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                selectedAlbumId === album.id && styles.filterChipTextActive,
-              ]}
-            >
-              📁 {album.name}
-            </Text>
-          </Pressable>
-        ))}
-
-        {/* Add Album Button */}
-        <Pressable onPress={handleCreateAlbum} style={styles.addAlbumChip}>
-          <Text style={styles.addAlbumChipText}>+ Álbum</Text>
-        </Pressable>
+          <Chip
+            label="Favoritas"
+            icon={onlyFavorites ? 'star' : 'star-outline'}
+            active={onlyFavorites}
+            activeColor={colors.favorite}
+            onPress={() => setOnlyFavorites((prev) => !prev)}
+          />
+          <Chip
+            label="Todas"
+            active={selectedAlbumId === null}
+            onPress={() => setSelectedAlbumId(null)}
+          />
+          {albums.map((album) => (
+            <Chip
+              key={album.id}
+              label={album.name}
+              icon="folder-outline"
+              active={selectedAlbumId === album.id}
+              onPress={() => setSelectedAlbumId(selectedAlbumId === album.id ? null : album.id)}
+            />
+          ))}
+          <Chip label="Álbum" icon="add" onPress={() => setCreatingAlbum(true)} />
+        </ScrollView>
       </View>
 
-      {/* Photos Grid */}
       <FlatList
         data={photos}
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
-        contentContainerStyle={styles.listContent}
-        columnWrapperStyle={styles.columnWrapper}
+        contentContainerStyle={styles.list}
+        columnWrapperStyle={styles.column}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>📷</Text>
-            <Text style={styles.emptyTitle}>No se encontraron fotos</Text>
-            <Text style={styles.emptySubtitle}>
-              {search || selectedAlbumId || onlyFavorites
-                ? 'Prueba cambiando los filtros o la búsqueda'
-                : 'Captura una foto con la cámara para comenzar'}
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.card}
-            onPress={() =>
-              router.push({ pathname: '/foto/[id]' as any, params: { id: String(item.id) } })
+          <EmptyState
+            icon={hasFilters ? 'search-outline' : 'camera-outline'}
+            title={hasFilters ? 'No se encontraron fotos' : 'Todavía no hay fotos'}
+            detail={
+              hasFilters
+                ? 'Prueba cambiando los filtros o la búsqueda.'
+                : 'Captura una foto con la cámara para comenzar.'
             }
-            onLongPress={() => confirmDelete(item.id)}
-          >
-            <Image source={{ uri: item.uri }} style={styles.cardImage} />
+          />
+        }
+        renderItem={({ item, index }) => {
+          const pending = item.userId !== 'local_guest' && isPending(item);
+          const hasLocation = item.latitude !== null;
 
-            {/* Favorite badge */}
-            {item.favorite ? (
-              <View style={styles.favBadge}>
-                <Text style={styles.favBadgeText}>★</Text>
-              </View>
-            ) : null}
+          return (
+            <Animated.View
+              entering={FadeInDown.delay(Math.min(index, 8) * 35).duration(260)}
+              exiting={FadeOut.duration(160)}
+              layout={LinearTransition.springify().damping(18)}
+              style={{ width: cardWidth }}
+            >
+              <AnimatedPressable
+                accessibilityRole="button"
+                accessibilityHint="Mantén presionado para eliminar"
+                scaleTo={0.96}
+                style={styles.card}
+                onPress={() =>
+                  router.push({ pathname: '/foto/[id]', params: { id: String(item.id) } })
+                }
+                onLongPress={() => confirmDelete(item.id)}
+              >
+                <Image
+                  source={{ uri: item.uri }}
+                  style={styles.image}
+                  contentFit="cover"
+                  transition={180}
+                  recyclingKey={String(item.id)}
+                />
 
-            {/* Top Left Badges: GPS + Cloud Sync */}
-            <View style={styles.topLeftBadges}>
-              <View style={styles.badgeItem}>
-                <Text style={styles.badgeText}>
-                  {item.latitude !== null ? '📍' : '⚠️'}
-                </Text>
-              </View>
-              <View style={styles.badgeItem}>
-                <Text style={styles.badgeText}>
-                  {item.syncStatus === 'synced'
-                    ? '☁️'
-                    : item.syncStatus === 'uploading'
-                    ? '🔄'
-                    : '⏳'}
-                </Text>
-              </View>
-            </View>
+                <View style={styles.badges}>
+                  {!hasLocation ? (
+                    <View style={styles.badge}>
+                      <Ionicons name="location-outline" size={12} color={colors.warning} />
+                    </View>
+                  ) : null}
+                  {pending ? (
+                    <Animated.View entering={ZoomIn} exiting={FadeOut} style={styles.badge}>
+                      <Ionicons name="cloud-upload-outline" size={12} color={colors.warning} />
+                    </Animated.View>
+                  ) : null}
+                  {item.favorite ? (
+                    <Animated.View entering={ZoomIn.springify()} style={styles.badge}>
+                      <Ionicons name="star" size={12} color={colors.favorite} />
+                    </Animated.View>
+                  ) : null}
+                </View>
 
-            {/* Card Footer */}
-            <View style={styles.cardFooter}>
-              {item.albumName ? (
-                <Text style={styles.cardAlbum} numberOfLines={1}>
-                  📁 {item.albumName}
-                </Text>
-              ) : null}
-
-              {item.note ? (
-                <Text style={styles.cardNote} numberOfLines={1}>
-                  📝 {item.note}
-                </Text>
-              ) : (
-                <Text style={styles.cardDate}>
-                  {new Date(item.createdAt).toLocaleDateString('es-CO')}
-                </Text>
-              )}
-            </View>
-          </Pressable>
-        )}
+                <View style={styles.cardBody}>
+                  <Text
+                    style={[styles.cardTitle, !item.note && styles.cardDate]}
+                    numberOfLines={1}
+                  >
+                    {item.note ||
+                      new Date(item.createdAt).toLocaleDateString('es-CO', { dateStyle: 'medium' })}
+                  </Text>
+                  {item.albumName ? (
+                    <Text style={styles.cardAlbum} numberOfLines={1}>
+                      {item.albumName}
+                    </Text>
+                  ) : null}
+                </View>
+              </AnimatedPressable>
+            </Animated.View>
+          );
+        }}
       />
+
+      <Modal
+        visible={creatingAlbum}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAlbumDialog}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalRoot}
+        >
+          <Pressable
+            accessibilityLabel="Cerrar"
+            style={StyleSheet.absoluteFill}
+            onPress={closeAlbumDialog}
+          />
+          <Animated.View entering={FadeIn.duration(180)} style={styles.dialog}>
+            <Text style={styles.dialogTitle}>Nuevo álbum</Text>
+            <TextInput
+              autoFocus
+              style={styles.dialogInput}
+              placeholder="Nombre del álbum"
+              placeholderTextColor={colors.textFaint}
+              value={albumName}
+              onChangeText={setAlbumName}
+              onSubmitEditing={handleCreateAlbum}
+              returnKeyType="done"
+            />
+            <View style={styles.dialogActions}>
+              <Button
+                label="Cancelar"
+                variant="secondary"
+                onPress={closeAlbumDialog}
+                style={styles.dialogButton}
+              />
+              <Button
+                label="Crear"
+                disabled={!albumName.trim()}
+                onPress={handleCreateAlbum}
+                style={styles.dialogButton}
+              />
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-    paddingTop: 8,
-  },
-  headerBar: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    alignItems: 'flex-start',
-  },
-  searchContainer: {
-    flexDirection: 'row',
+  container: { backgroundColor: colors.background, flex: 1 },
+  header: {
     alignItems: 'center',
-    backgroundColor: '#18181b',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#27272a',
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 15,
-  },
-  clearSearchBtn: {
-    padding: 4,
-  },
-  clearSearchText: {
-    color: '#a1a1aa',
-    fontSize: 14,
-  },
-  filtersBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginVertical: 12,
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#18181b',
-    borderWidth: 1,
-    borderColor: '#27272a',
-  },
-  filterChipActive: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
-  },
-  filterChipActiveGold: {
-    backgroundColor: '#f59e0b',
-    borderColor: '#f59e0b',
-  },
-  filterChipText: {
-    color: '#a1a1aa',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  filterChipTextActive: {
-    color: '#09090b',
-    fontWeight: '700',
-  },
-  filterChipTextActiveGold: {
-    color: '#09090b',
-    fontWeight: '700',
-  },
-  addAlbumChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#3f3f46',
-    borderStyle: 'dashed',
-  },
-  addAlbumChipText: {
-    color: '#34d399',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  columnWrapper: {
     justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
   },
-  card: {
-    width: COLUMN_WIDTH,
-    backgroundColor: '#18181b',
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#27272a',
-  },
-  cardImage: {
-    width: COLUMN_WIDTH,
-    height: COLUMN_WIDTH * 1.1,
-    backgroundColor: '#27272a',
-  },
-  favBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    zIndex: 2,
-  },
-  favBadgeText: {
-    color: '#fbbf24',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  topLeftBadges: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    flexDirection: 'row',
-    gap: 4,
-    zIndex: 2,
-  },
-  badgeItem: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  badgeText: {
-    fontSize: 10,
-  },
-  cardFooter: {
-    padding: 8,
-    gap: 2,
-  },
-  cardAlbum: {
-    fontSize: 11,
-    color: '#34d399',
-    fontWeight: '600',
-  },
-  cardNote: {
-    fontSize: 12,
-    color: '#ffffff',
-    fontWeight: '500',
-  },
-  cardDate: {
-    fontSize: 11,
-    color: '#71717a',
-  },
-  emptyContainer: {
+  count: { ...type.caption, color: colors.textFaint },
+  filters: {
     alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  list: { flexGrow: 1, gap: GUTTER, paddingBottom: spacing.xl, paddingHorizontal: spacing.lg },
+  column: { gap: GUTTER },
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  image: { aspectRatio: 1, backgroundColor: colors.surfaceRaised, width: '100%' },
+  badges: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    left: spacing.sm,
+    position: 'absolute',
+    top: spacing.sm,
+  },
+  badge: {
+    alignItems: 'center',
+    backgroundColor: colors.scrim,
+    borderRadius: radius.full,
+    height: 24,
     justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 8,
+    width: 24,
   },
-  emptyEmoji: {
-    fontSize: 40,
+  cardBody: { gap: 2, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
+  cardTitle: { ...type.label, color: colors.text },
+  cardDate: { color: colors.textMuted, fontWeight: '500' },
+  cardAlbum: { ...type.caption, color: colors.primary },
+  modalRoot: {
+    backgroundColor: colors.scrim,
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
   },
-  emptyTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  dialog: {
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.lg,
+    padding: spacing.xl,
   },
-  emptySubtitle: {
-    color: '#71717a',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingHorizontal: 24,
+  dialogTitle: { ...type.heading, color: colors.text },
+  dialogInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    color: colors.text,
+    fontSize: 15,
+    height: 46,
+    paddingHorizontal: spacing.md,
   },
+  dialogActions: { flexDirection: 'row', gap: spacing.md },
+  dialogButton: { flex: 1 },
 });

@@ -1,23 +1,78 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { Text, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { colors, headerOptions, type IconName } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { deleteWarning, usePhotos } from '@/hooks/usePhotos';
+import { useShake } from '@/hooks/useShake';
+import { useSyncEngine } from '@/hooks/useSync';
+
+function TabIcon({ name, color, focused }: { name: IconName; color: ColorValue; focused: boolean }) {
+  const scale = useSharedValue(focused ? 1.12 : 1);
+
+  useEffect(() => {
+    scale.set(withSpring(focused ? 1.12 : 1, { damping: 12, stiffness: 240 }));
+  }, [focused, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Ionicons name={name} size={23} color={color as string} />
+    </Animated.View>
+  );
+}
+
+function tabIcon(active: IconName, inactive: IconName) {
+  return function Icon({ color, focused }: { color: ColorValue; focused: boolean }) {
+    return <TabIcon name={focused ? active : inactive} color={color} focused={focused} />;
+  };
+}
 
 export default function TabLayout() {
+  // Mantiene activa la sincronización automática en todas las pestañas
+  useSyncEngine();
+
+  // El sensor vive aquí para que funcione en todas las pestañas sin apilar diálogos.
+  // Mientras el diálogo está abierto se pausa, porque borrar llega a todos los teléfonos.
+  const { isGuest } = useAuth();
+  const { photos, clearAll } = usePhotos();
+  const [confirming, setConfirming] = useState(false);
+  const photoCount = photos.length;
+
+  const handleShake = useCallback(() => {
+    if (photoCount === 0) return;
+    setConfirming(true);
+    Alert.alert(
+      'Borrar todas las fotos',
+      deleteWarning(isGuest, photoCount),
+      [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setConfirming(false) },
+        {
+          text: 'Borrar todas',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAll();
+            setConfirming(false);
+          },
+        },
+      ],
+      { cancelable: true, onDismiss: () => setConfirming(false) }
+    );
+  }, [photoCount, clearAll, isGuest]);
+
+  useShake(handleShake, { enabled: !confirming });
+
   return (
     <Tabs
-      initialRouteName="geocam"
       screenOptions={{
-        tabBarActiveTintColor: '#10b981',
-        tabBarInactiveTintColor: '#9ca3af',
-        tabBarStyle: {
-          backgroundColor: '#0a0a0a',
-          borderTopColor: '#262626',
-        },
-        headerStyle: {
-          backgroundColor: '#0a0a0a',
-        },
-        headerTintColor: '#ffffff',
+        ...headerOptions,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textFaint,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
       }}
     >
       <Tabs.Screen
@@ -25,72 +80,34 @@ export default function TabLayout() {
         options={{
           title: 'GeoCam',
           headerShown: false,
-          tabBarIcon: ({ color }) =>
-            Platform.OS === 'ios' ? (
-              <SymbolView
-                name={{
-                  ios: 'camera.fill',
-                  android: 'camera',
-                  web: 'camera',
-                }}
-                tintColor={color}
-                size={24}
-              />
-            ) : (
-              <Text style={{ fontSize: 20 }}>📷</Text>
-            ),
+          tabBarIcon: tabIcon('camera', 'camera-outline'),
         }}
       />
       <Tabs.Screen
         name="galeria"
         options={{
           title: 'Galería',
-          headerShown: true,
-          headerTitle: 'Galería y Álbumes',
-          tabBarIcon: ({ color }) =>
-            Platform.OS === 'ios' ? (
-              <SymbolView
-                name={{
-                  ios: 'photo.on.rectangle.angled',
-                  android: 'photo_library',
-                  web: 'photo_library',
-                }}
-                tintColor={color}
-                size={24}
-              />
-            ) : (
-              <Text style={{ fontSize: 20 }}>🖼️</Text>
-            ),
+          headerTitle: 'Galería',
+          tabBarIcon: tabIcon('images', 'images-outline'),
         }}
       />
       <Tabs.Screen
         name="mapa"
         options={{
           title: 'Mapa',
-          headerShown: true,
-          headerTitle: 'Mapa de Fotos',
-          tabBarIcon: ({ color }) =>
-            Platform.OS === 'ios' ? (
-              <SymbolView
-                name={{
-                  ios: 'map.fill',
-                  android: 'map',
-                  web: 'map',
-                }}
-                tintColor={color}
-                size={24}
-              />
-            ) : (
-              <Text style={{ fontSize: 20 }}>🗺️</Text>
-            ),
+          headerShown: false,
+          tabBarIcon: tabIcon('map', 'map-outline'),
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="nube"
         options={{
-          href: null,
+          title: 'Nube',
+          headerTitle: 'Tu nube',
+          tabBarIcon: tabIcon('cloud', 'cloud-outline'),
         }}
       />
+      <Tabs.Screen name="index" options={{ href: null }} />
     </Tabs>
   );
 }

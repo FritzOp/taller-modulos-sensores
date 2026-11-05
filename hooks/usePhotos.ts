@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { photosRepo, type PhotoInput } from '@/db/repositories/photos';
+import { photosRepo, type PhotoChanges, type PhotoInput } from '@/db/repositories/photos';
 import { persistPhoto } from '@/services/photoFiles';
 import { useAuth } from '@/context/AuthContext';
-import { syncManager } from '@/services/syncManager';
+import { requestSync } from '@/hooks/useSync';
 import type { Coords } from '@/types/geo';
 
 export interface PhotoFilterOptions {
@@ -19,6 +19,14 @@ export interface AddPhotoInput {
   albumId?: number | null;
   note?: string;
   favorite?: boolean;
+}
+
+/** El invitado no sincroniza: su foto solo existe en este teléfono. */
+export function deleteWarning(isGuest: boolean, count = 1): string {
+  const target = count === 1 ? 'esta foto' : `las ${count} fotos guardadas`;
+  return isGuest
+    ? `¿Deseas eliminar ${target}? No se puede deshacer.`
+    : `¿Deseas eliminar ${target}? También se eliminará${count === 1 ? '' : 'n'} de la nube y de tus otros teléfonos.`;
 }
 
 export function usePhotos(filters?: PhotoFilterOptions) {
@@ -53,49 +61,40 @@ export function usePhotos(filters?: PhotoFilterOptions) {
         albumId: input.albumId ?? null,
         note: input.note ?? null,
         favorite: input.favorite ?? false,
-        syncStatus: 'pending',
       };
 
       // 2. Inserción local en SQLite
       await photosRepo.create(payload);
 
-      // 3. Si el usuario está autenticado, intentar respaldo inmediato en segundo plano
-      if (!isGuest) {
-        syncManager.syncPendingUploads(userId).catch(() => {});
-      }
+      // 3. Sin red, la petición queda en pausa y se reanuda sola al reconectar
+      requestSync();
     },
-    [userId, isGuest]
+    [userId]
   );
 
   const removePhoto = useCallback(
     async (id: number) => {
       await photosRepo.remove(id, userId);
-      // Intentar procesar la eliminación remota en segundo plano
-      if (!isGuest) {
-        syncManager.syncPendingDeletions(userId).catch(() => {});
-      }
+      requestSync();
     },
-    [userId, isGuest]
+    [userId]
   );
 
   const updatePhoto = useCallback(
-    async (id: number, data: Partial<PhotoInput>) => {
+    async (id: number, data: PhotoChanges) => {
       await photosRepo.update(id, data);
-      if (!isGuest) {
-        syncManager.syncPendingUploads(userId).catch(() => {});
-      }
+      requestSync();
     },
-    [userId, isGuest]
+    []
   );
 
   const clearAll = useCallback(async () => {
     await photosRepo.clearAll(userId);
-    if (!isGuest) {
-      syncManager.syncPendingDeletions(userId).catch(() => {});
-    }
-  }, [userId, isGuest]);
+    requestSync();
+  }, [userId]);
 
   return {
+    deleteWarning: deleteWarning(isGuest),
     photos,
     photosWithLocation,
     addPhoto,

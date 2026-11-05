@@ -4,12 +4,6 @@ export const albums = sqliteTable('albums', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: text('user_id').notNull().default('local_guest'),
   name: text('name').notNull(),
-  remoteId: text('remote_id'),
-  syncStatus: text('sync_status', {
-    enum: ['synced', 'pending', 'uploading', 'error'],
-  })
-    .notNull()
-    .default('pending'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -33,25 +27,22 @@ export const photos = sqliteTable('photos', {
   favorite: integer('favorite', { mode: 'boolean' })
     .notNull()
     .default(false),
-  remoteId: text('remote_id'),
-  remoteUrl: text('remote_url'),
-  syncStatus: text('sync_status', {
-    enum: ['synced', 'pending', 'uploading', 'error'],
-  })
-    .notNull()
-    .default('pending'),
-  lastSyncedAt: integer('last_synced_at', { mode: 'timestamp_ms' }),
+  // Identidad compartida con la nube: el id autoincremental solo vale en este teléfono
+  clientId: text('client_id').unique(),
+  // Última modificación hecha por el usuario: decide los conflictos
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  // Ruta del archivo en el bucket
+  remotePath: text('remote_path'),
+  // Versión (updatedAt) que quedó en la nube. Pendiente = vacío o anterior a updatedAt
+  syncedAt: integer('synced_at', { mode: 'timestamp_ms' }),
+  // Borrado lógico: la foto se oculta y la marca viaja a los demás teléfonos
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
 });
 
-export const syncQueue = sqliteTable('sync_queue', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  userId: text('user_id').notNull(),
-  entityType: text('entity_type', { enum: ['photo', 'album'] }).notNull(),
-  remoteId: text('remote_id').notNull(),
-  storagePath: text('storage_path'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
-    .notNull()
-    .$defaultFn(() => new Date()),
+// Datos de la sincronización: cursor de bajada y último resultado de cada usuario
+export const syncMeta = sqliteTable('sync_meta', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
 });
 
 export type Album = typeof albums.$inferSelect;
@@ -59,6 +50,3 @@ export type NewAlbum = typeof albums.$inferInsert;
 
 export type Photo = typeof photos.$inferSelect;
 export type NewPhoto = typeof photos.$inferInsert;
-
-export type SyncQueueItem = typeof syncQueue.$inferSelect;
-export type NewSyncQueueItem = typeof syncQueue.$inferInsert;

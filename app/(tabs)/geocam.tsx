@@ -1,15 +1,47 @@
 import React from 'react';
-import { View, Text, Pressable, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Alert, ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { useCamera } from '@/hooks/useCamera';
-import { useGeoLocation } from '@/hooks/useGeoLocation';
-import { useShake } from '@/hooks/useShake';
-import { useCameraLevel } from '@/hooks/useCameraLevel';
-import { usePhotos } from '@/hooks/usePhotos';
-import { PermissionPrimer } from '@/components/PermissionPrimer';
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+  ZoomIn,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraLevelIndicator } from '@/components/CameraLevelIndicator';
+import { PermissionPrimer } from '@/components/PermissionPrimer';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { colors, radius, spacing, type, type IconName } from '@/constants/theme';
+import { useCamera } from '@/hooks/useCamera';
+import { useCameraLevel } from '@/hooks/useCameraLevel';
+import { useGeoLocation } from '@/hooks/useGeoLocation';
+import { usePhotos } from '@/hooks/usePhotos';
+
+function RoundButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      haptic
+      scaleTo={0.88}
+      onPress={onPress}
+      style={styles.roundButton}
+    >
+      <Ionicons name={icon} size={23} color={colors.white} />
+    </AnimatedPressable>
+  );
+}
 
 export default function GeoCamScreen() {
   const {
@@ -25,26 +57,21 @@ export default function GeoCamScreen() {
   } = useCamera();
   const geo = useGeoLocation({ watch: true });
   const level = useCameraLevel();
-  const { photos, addPhoto, clearAll } = usePhotos();
+  const { photos, addPhoto } = usePhotos();
+  const insets = useSafeAreaInsets();
 
-  // R4: Shake sensor integration to prompt clearing photos
-  useShake(() => {
-    Alert.alert(
-      'Borrar fotos',
-      '¿Deseas eliminar todas las fotos guardadas?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Borrar todas', style: 'destructive', onPress: clearAll },
-      ]
-    );
-  });
+  const shutterScale = useSharedValue(1);
+  const flashOpacity = useSharedValue(0);
+
+  const shutterStyle = useAnimatedStyle(() => ({ transform: [{ scale: shutterScale.get() }] }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flashOpacity.get() }));
 
   const lastPhoto = photos[0] ?? null;
 
   if (permissionState === 'checking') {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#10b981" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -62,20 +89,29 @@ export default function GeoCamScreen() {
   }
 
   const handleCapture = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    shutterScale.set(withSequence(
+      withTiming(0.82, { duration: 80 }),
+      withSpring(1, { damping: 10, stiffness: 240 })
+    ));
+    flashOpacity.set(withSequence(
+      withTiming(0.85, { duration: 50 }),
+      withTiming(0, { duration: 240 })
+    ));
+
     const photo = await takePhoto();
     if (!photo) return;
 
     // Graceful degradation: without location permission, coords stays null
     const coords =
-      geo.permission === 'granted'
-        ? (geo.coords ?? (await geo.getCurrent()))
-        : null;
+      geo.permission === 'granted' ? (geo.coords ?? (await geo.getCurrent())) : null;
 
-    await addPhoto({
-      uri: photo.uri,
-      coords,
-      source: 'camera',
-    });
+    try {
+      await addPhoto({ uri: photo.uri, coords, source: 'camera' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (e: any) {
+      Alert.alert('No se pudo guardar la foto', e.message ?? 'Inténtalo de nuevo.');
+    }
   };
 
   const handleImportGallery = async () => {
@@ -87,15 +123,9 @@ export default function GeoCamScreen() {
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       const coords =
-        geo.permission === 'granted'
-          ? (geo.coords ?? (await geo.getCurrent()))
-          : null;
+        geo.permission === 'granted' ? (geo.coords ?? (await geo.getCurrent())) : null;
 
-      await addPhoto({
-        uri: asset.uri,
-        coords,
-        source: 'gallery',
-      });
+      await addPhoto({ uri: asset.uri, coords, source: 'gallery' });
     }
   };
 
@@ -109,36 +139,8 @@ export default function GeoCamScreen() {
         onCameraReady={onCameraReady}
       />
 
-      {/* Location banner: request in context without blocking camera */}
-      {geo.permission !== 'granted' && geo.permission !== 'checking' && (
-        <Pressable
-          onPress={geo.permission === 'blocked' ? geo.openSettings : geo.requestPermission}
-          style={styles.locationBanner}
-        >
-          <Text style={styles.locationBannerText}>
-            {geo.permission === 'blocked'
-              ? 'Ubicación bloqueada: Toca para abrir Ajustes'
-              : 'Activa la ubicación para etiquetar tus fotos'}
-          </Text>
-        </Pressable>
-      )}
-
-      {/* Live coordinates display */}
-      {geo.coords && (
-        <View style={styles.coordsBadge}>
-          <Text style={styles.coordsText}>
-            {geo.coords.latitude.toFixed(5)}, {geo.coords.longitude.toFixed(5)}
-          </Text>
-          <Text style={styles.accuracyText}>
-            ±{Math.round(geo.coords.accuracy ?? 0)} m
-          </Text>
-        </View>
-      )}
-
-      {/* Cloud & User Sync Status Badge */}
-      <View style={styles.topRightSync}>
-        <SyncStatusBadge />
-      </View>
+      {/* Destello al capturar */}
+      <Animated.View pointerEvents="none" style={[styles.flash, flashStyle]} />
 
       {/* Reto Opcional: Indicador de nivel artificial para nivelar la cámara */}
       <CameraLevelIndicator
@@ -147,177 +149,178 @@ export default function GeoCamScreen() {
         isAvailable={level.isAvailable}
       />
 
+      <View style={[styles.topBar, { top: insets.top + spacing.sm }]}>
+        <Animated.View entering={FadeInDown.duration(280)}>
+          <SyncStatusBadge />
+        </Animated.View>
+
+        {/* Live coordinates display */}
+        {geo.coords ? (
+          <Animated.View entering={FadeIn.duration(280)} exiting={FadeOut} style={styles.coords}>
+            <Ionicons name="location" size={13} color={colors.primary} />
+            <Text style={styles.coordsText}>
+              {geo.coords.latitude.toFixed(5)}, {geo.coords.longitude.toFixed(5)}
+            </Text>
+            <Text style={styles.accuracyText}>±{Math.round(geo.coords.accuracy ?? 0)} m</Text>
+          </Animated.View>
+        ) : null}
+
+        {/* Location banner: request in context without blocking camera */}
+        {geo.permission !== 'granted' && geo.permission !== 'checking' ? (
+          <Animated.View entering={FadeInDown.duration(280)} exiting={FadeOut}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={geo.permission === 'blocked' ? geo.openSettings : geo.requestPermission}
+              style={styles.locationBanner}
+            >
+              <Ionicons name="location-outline" size={15} color={colors.warning} />
+              <Text style={styles.locationBannerText}>
+                {geo.permission === 'blocked'
+                  ? 'Ubicación bloqueada: toca para abrir Ajustes'
+                  : 'Activa la ubicación para etiquetar tus fotos'}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
+      </View>
+
       {/* Bottom controls row */}
       <View style={styles.bottomControls}>
-        {/* Gallery button */}
-        <Pressable
-          onPress={handleImportGallery}
-          style={styles.iconButton}
-          accessibilityLabel="Importar de galería"
-        >
-          <Text style={styles.iconText}>🖼️</Text>
-        </Pressable>
+        <View style={styles.sideSlot}>
+          {lastPhoto ? (
+            <Animated.View key={lastPhoto.id} entering={ZoomIn.springify().damping(13)}>
+              <AnimatedPressable
+                accessibilityRole="button"
+                accessibilityLabel="Ver la última foto"
+                scaleTo={0.9}
+                style={styles.thumbnailWrapper}
+                onPress={() =>
+                  router.push({ pathname: '/foto/[id]', params: { id: String(lastPhoto.id) } })
+                }
+              >
+                <Image source={{ uri: lastPhoto.uri }} style={styles.thumbnail} contentFit="cover" />
+              </AnimatedPressable>
+            </Animated.View>
+          ) : (
+            <View style={styles.thumbnailPlaceholder} />
+          )}
+        </View>
 
         {/* Capture button */}
         <Pressable
-          onPress={handleCapture}
-          disabled={isCapturing}
-          style={styles.captureButton}
+          accessibilityRole="button"
           accessibilityLabel="Tomar foto"
+          disabled={isCapturing}
+          onPress={handleCapture}
         >
-          <View
-            style={[styles.captureInner, isCapturing ? styles.captureInnerCapturing : null]}
-          />
-        </Pressable>
-
-        {/* Camera switch button */}
-        <Pressable
-          onPress={toggleFacing}
-          style={styles.iconButton}
-          accessibilityLabel="Cambiar cámara"
-        >
-          <Text style={styles.iconText}>🔄</Text>
-        </Pressable>
-
-        {/* Thumbnail preview of last photo */}
-        {lastPhoto ? (
-          <View style={styles.thumbnailWrapper}>
-            <Image
-              source={{ uri: lastPhoto.uri }}
-              style={styles.thumbnail}
+          <View style={styles.captureRing}>
+            <Animated.View
+              style={[styles.captureInner, isCapturing && styles.captureInnerBusy, shutterStyle]}
             />
-            <View style={styles.thumbnailBadge}>
-              <Text style={styles.thumbnailBadgeText}>
-                {lastPhoto.source === 'camera' ? '📷' : '🖼️'}
-              </Text>
-            </View>
           </View>
-        ) : (
-          <View style={styles.thumbnailPlaceholder} />
-        )}
+        </Pressable>
+
+        <View style={[styles.sideSlot, styles.sideActions]}>
+          <RoundButton icon="images-outline" label="Importar de galería" onPress={handleImportGallery} />
+          <RoundButton icon="camera-reverse-outline" label="Cambiar cámara" onPress={toggleFacing} />
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  container: { backgroundColor: '#000', flex: 1 },
   centerContainer: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0a0a0a',
   },
-  locationBanner: {
+  flash: { ...StyleSheet.absoluteFill, backgroundColor: colors.white },
+  topBar: {
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    left: spacing.lg,
     position: 'absolute',
-    left: 16,
-    right: 16,
-    top: 56,
-    borderRadius: 12,
-    backgroundColor: '#fbbf24',
-    padding: 12,
-    zIndex: 10,
-    elevation: 4,
+    right: spacing.lg,
   },
-  locationBannerText: {
-    textAlign: 'center',
-    fontWeight: '600',
-    color: '#171717',
-    fontSize: 14,
-  },
-  coordsBadge: {
-    position: 'absolute',
-    left: 16,
-    top: 56,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    zIndex: 10,
-  },
-  topRightSync: {
-    position: 'absolute',
-    right: 16,
-    top: 56,
-    zIndex: 10,
-  },
-  coordsText: {
-    fontSize: 12,
-    color: '#34d399',
-    fontWeight: '600',
-  },
-  accuracyText: {
-    fontSize: 11,
-    color: '#a3a3a3',
-  },
-  bottomControls: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
+  coords: {
+    alignItems: 'center',
+    backgroundColor: colors.scrim,
+    borderRadius: radius.full,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingHorizontal: 16,
+    gap: spacing.xs + 2,
+    minHeight: 28,
+    paddingHorizontal: spacing.md,
   },
-  iconButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(23, 23, 23, 0.75)',
+  coordsText: { ...type.caption, color: colors.text, fontVariant: ['tabular-nums'] },
+  accuracyText: { ...type.caption, color: colors.textMuted },
+  locationBanner: {
     alignItems: 'center',
+    backgroundColor: colors.scrim,
+    borderColor: colors.warning,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  locationBannerText: { ...type.caption, color: colors.warning, flexShrink: 1 },
+  bottomControls: {
+    alignItems: 'center',
+    backgroundColor: colors.scrimLight,
+    bottom: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    left: 0,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    position: 'absolute',
+    right: 0,
+  },
+  sideSlot: { alignItems: 'flex-start', flex: 1 },
+  sideActions: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end' },
+  roundButton: {
+    alignItems: 'center',
+    backgroundColor: colors.scrim,
+    borderRadius: radius.full,
+    height: 46,
     justifyContent: 'center',
+    width: 46,
   },
-  iconText: {
-    fontSize: 22,
-  },
-  captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  captureRing: {
+    alignItems: 'center',
+    borderColor: colors.white,
+    borderRadius: radius.full,
     borderWidth: 4,
-    borderColor: '#ffffff',
-    alignItems: 'center',
+    height: 78,
     justifyContent: 'center',
+    width: 78,
   },
   captureInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
+    borderRadius: radius.full,
+    height: 62,
+    width: 62,
   },
-  captureInnerCapturing: {
-    backgroundColor: '#9ca3af',
-  },
+  captureInnerBusy: { backgroundColor: colors.primary },
   thumbnailWrapper: {
-    position: 'relative',
-    width: 52,
-    height: 52,
-  },
-  thumbnail: {
-    width: 52,
-    height: 52,
-    borderRadius: 8,
+    borderColor: colors.white,
+    borderRadius: radius.md,
     borderWidth: 2,
-    borderColor: '#ffffff',
+    height: 50,
+    overflow: 'hidden',
+    width: 50,
   },
-  thumbnailBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    backgroundColor: '#000',
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-  },
-  thumbnailBadgeText: {
-    fontSize: 10,
-  },
+  thumbnail: { height: '100%', width: '100%' },
   thumbnailPlaceholder: {
-    width: 52,
-    height: 52,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    height: 50,
+    width: 50,
   },
 });

@@ -4,13 +4,14 @@ import { Accelerometer } from 'expo-sensors';
 interface ShakeOptions {
   threshold?: number;
   cooldownMs?: number;
+  enabled?: boolean;
 }
 
 export function useShake(
   onShake: () => void,
   options: ShakeOptions = {}
 ): { isAvailable: boolean | null } {
-  const { threshold = 1.8, cooldownMs = 1000 } = options;
+  const { threshold = 1.8, cooldownMs = 1000, enabled = true } = options;
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
 
   const onShakeRef = useRef(onShake);
@@ -19,6 +20,8 @@ export function useShake(
   const lastShakeRef = useRef(0);
 
   useEffect(() => {
+    if (!enabled) return;
+
     let cancelled = false;
     let subscription: { remove: () => void } | null = null;
 
@@ -51,7 +54,7 @@ export function useShake(
       cancelled = true;
       subscription?.remove();
     };
-  }, [threshold, cooldownMs]);
+  }, [threshold, cooldownMs, enabled]);
 
   return { isAvailable };
 }

@@ -18,7 +18,7 @@ https://github.com/FritzOp/taller-modulos-sensores
 
 3. CRUD COMPLETO Y FILTROS:
    app/foto/[id].tsx: Pantalla de detalle con edición de nota, toggle favorito, 
-     cambio de álbum y borrado permanente (C3).
+     cambio de álbum y borrado (C3).
    app/(tabs)/galeria.tsx: Buscador reactivo por nota (like), selector de álbumes, 
      creador de álbumes y filtro de favoritas (C4).
    app/(tabs)/geocam.tsx: Captura con persistencia física y sensor de nivelación.
@@ -27,21 +27,24 @@ https://github.com/FritzOp/taller-modulos-sensores
 4. ALMACENAMIENTO PERMANENTE (services/photoFiles.ts):
    Las fotos se transfieren de la caché al directorio permanente de la app 
      (Paths.document/photos) usando expo-file-system (C5).
-   Al eliminar el registro, se elimina el archivo físico.
+   El archivo físico se elimina cuando el borrado ya está sincronizado.
 
-5. RESPALDO CONFIABLE Y SINCRONIZACIÓN EN LA NUBE CON SUPABASE:
-   - Sincronización de Pendientes: Cola asíncrona de subida que transfiere archivos 
-     al bucket 'geocam-photos' y metadatos a PostgreSQL con control de estados
-     ('pending', 'uploading', 'synced', 'error') y verificación de red vía expo-network.
-   - Borrado Coherente: Cola local 'sync_queue' (tombstone) que purga el archivo en 
-     Supabase Storage y la fila en PostgreSQL, propagando a otros dispositivos mediante 
-     la tabla 'geocam_deleted_records'.
-   - Consulta de la Nube: Descarga y restauración automática de fotos respaldadas en 
-     Supabase hacia el almacenamiento local permanente con File.downloadFileAsync.
-   - Datos Locales Separados por Usuario: Campo 'user_id' en todas las tablas locales y 
-     remotas, soporte de Modo Invitado ('local_guest') 100% offline, aislamiento de 
-     consultas con Drizzle y políticas Row Level Security (RLS) en Supabase.
-   - Migración 0002 (drizzle/0002_steep_slyde.sql): Nuevos campos de sincronización y tabla 
-     'sync_queue' aplicados automáticamente en el arranque de la app.
-   - Script SQL Supabase: supabase_schema.sql en la raíz para aprovisionar tablas, 
-     bucket y políticas RLS.
+5. SEMANA 9: SINCRONIZACIÓN EN DOS SENTIDOS Y FEED DE LA NUBE:
+   - Backend: supabase_semana9.sql (client_id, deleted_at, server_updated_at, triggers,
+     índices, RLS y bucket privado).
+   - Sincronización: services/sync.ts (bajar, subir y limpiar) y services/syncRules.ts
+     (regla de conflicto como funciones puras). Disparo automático en hooks/useSync.ts.
+   - Borrados: borrado lógico con deletedAt; los archivos se eliminan cuando la marca
+     ya está sincronizada (C1). Errores por foto: la que falla queda pendiente (C5).
+   - Feed de la nube: app/(tabs)/nube.tsx y hooks/useCloudFeed.ts con useInfiniteQuery,
+     cursor, infinite scroll, búsqueda en vivo y estados de UI (C2). Caché persistida
+     con react-query-persist-client (C3).
+   - Pantalla de estado: app/sincronizacion.tsx (C4).
+   - Migraciones: drizzle/0003 y drizzle/0004.
+   - Pruebas: npm test. Matriz de pruebas y limitaciones en el README (C6, C7).
+     Evidencia en docs/evidencia/. Registro de IA en AI-LOG.md.
+
+   - SDK: el proyecto se actualizó a Expo SDK 58. Abrir con Expo Go para SDK 58.
+
+6. DISEÑO DE LA INTERFAZ:
+   Tema en constants/theme.ts, componentes en components/ui/ y animaciones con Reanimated.

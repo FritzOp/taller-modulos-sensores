@@ -1,15 +1,16 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
-import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
-import migrations from '@/drizzle/migrations';
-import { db } from '@/db/client';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { colors, headerOptions } from '@/constants/theme';
 import { AuthProvider } from '@/context/AuthContext';
+import { useDatabaseReady } from '@/hooks/useDatabaseReady';
+import { persistOptions, queryClient, useAppFocusManager } from '@/lib/queryClient';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -18,7 +19,7 @@ export {
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+  anchor: '(tabs)',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -29,7 +30,8 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  const { success: migrationsSuccess, error: migrationsError } = useMigrations(db, migrations);
+  const { success: migrationsSuccess, error: migrationsError } = useDatabaseReady();
+  useAppFocusManager();
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -54,34 +56,45 @@ export default function RootLayout() {
   if (!loaded || !migrationsSuccess) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10b981" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Iniciando base de datos offline...</Text>
       </View>
     );
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </PersistQueryClientProvider>
   );
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+const navigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: colors.background,
+    card: colors.background,
+    border: colors.border,
+    primary: colors.primary,
+    text: colors.text,
+  },
+};
 
+function RootLayoutNav() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <ThemeProvider value={navigationTheme}>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ ...headerOptions, animation: 'slide_from_right' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="foto/[id]"
           options={{
             presentation: 'card',
             headerShown: true,
-            title: 'Detalle de Foto',
-            headerStyle: { backgroundColor: '#0a0a0a' },
-            headerTintColor: '#ffffff',
+            title: 'Foto',
           }}
         />
         <Stack.Screen
@@ -89,9 +102,14 @@ function RootLayoutNav() {
           options={{
             presentation: 'modal',
             headerShown: true,
-            title: 'Respaldo y Cuenta',
-            headerStyle: { backgroundColor: '#0a0a0a' },
-            headerTintColor: '#ffffff',
+            title: 'Tu cuenta',
+          }}
+        />
+        <Stack.Screen
+          name="sincronizacion"
+          options={{
+            headerShown: true,
+            title: 'Sincronización',
           }}
         />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
@@ -103,32 +121,32 @@ function RootLayoutNav() {
 const styles = StyleSheet.create({
   errorContainer: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
     gap: 12,
   },
   errorTitle: {
-    color: '#ef4444',
+    color: colors.danger,
     fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
   },
   errorDetail: {
-    color: '#d4d4d8',
+    color: colors.textMuted,
     fontSize: 14,
     textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
   },
   loadingText: {
-    color: '#a1a1aa',
+    color: colors.textMuted,
     fontSize: 14,
   },
 });

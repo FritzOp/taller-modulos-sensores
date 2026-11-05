@@ -1,43 +1,28 @@
 import React, { useMemo } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Alert,
-} from 'react-native';
-import MapView, { Marker, Callout } from 'react-native-maps';
+import { Alert, Image as NativeImage, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import MapView, { Callout, Marker } from 'react-native-maps';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown, FadeInUp, LinearTransition, SlideInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { colors, radius, spacing, type } from '@/constants/theme';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
 import { usePhotos } from '@/hooks/usePhotos';
-import { useShake } from '@/hooks/useShake';
+
+const openPhoto = (id: number) =>
+  router.push({ pathname: '/foto/[id]', params: { id: String(id) } });
 
 export default function MapaScreen() {
-  const { photos, removePhoto, clearAll } = usePhotos();
+  const { photos, removePhoto, deleteWarning } = usePhotos();
   const geo = useGeoLocation({ watch: true });
-
-  // R4: Shake sensor clears photos on this screen as well
-  useShake(() => {
-    Alert.alert(
-      'Borrar fotos',
-      '¿Deseas eliminar todas las fotos guardadas?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Borrar todas', style: 'destructive', onPress: clearAll },
-      ]
-    );
-  });
+  const insets = useSafeAreaInsets();
 
   // Separate photos with coordinates vs without coordinates (R3)
   const { geoPhotos, unlocatedPhotos } = useMemo(() => {
-    const geoList = photos.filter(
-      (p) => p.latitude !== null && p.longitude !== null
-    );
-    const unlocatedList = photos.filter(
-      (p) => p.latitude === null || p.longitude === null
-    );
+    const geoList = photos.filter((p) => p.latitude !== null && p.longitude !== null);
+    const unlocatedList = photos.filter((p) => p.latitude === null || p.longitude === null);
     return { geoPhotos: geoList, unlocatedPhotos: unlocatedList };
   }, [photos]);
 
@@ -68,48 +53,50 @@ export default function MapaScreen() {
     };
   }, [geo.coords, geoPhotos]);
 
+  const confirmDelete = (id: number) => {
+    Alert.alert(
+      'Eliminar foto',
+      deleteWarning,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => removePhoto(id) },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* Interactive Map */}
       <MapView
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation={geo.permission === 'granted'}
         showsMyLocationButton={geo.permission === 'granted'}
+        userInterfaceStyle="dark"
+        // Mantiene los controles nativos del mapa fuera de la barra de estado
+        mapPadding={{ top: insets.top + spacing.sm, right: 0, bottom: 0, left: 0 }}
       >
         {geoPhotos.map((photo) => {
           if (photo.latitude === null || photo.longitude === null) return null;
           return (
             <Marker
               key={photo.id}
-              coordinate={{
-                latitude: photo.latitude,
-                longitude: photo.longitude,
-              }}
-              title={photo.source === 'camera' ? '📷 Foto de Cámara' : '🖼️ Foto de Galería'}
-              description={new Date(photo.createdAt).toLocaleString()}
+              coordinate={{ latitude: photo.latitude, longitude: photo.longitude }}
+              pinColor={colors.primary}
+              title={photo.source === 'camera' ? 'Foto de cámara' : 'Foto de galería'}
+              description={new Date(photo.createdAt).toLocaleString('es-CO')}
             >
-              <Callout
-                tooltip
-                onPress={() => router.push({ pathname: '/foto/[id]' as any, params: { id: String(photo.id) } })}
-              >
-                <View style={styles.calloutContainer}>
-                  <Image source={{ uri: photo.uri }} style={styles.calloutImage} />
-                  <View style={styles.calloutContent}>
-                    <Text style={styles.calloutTitle}>
-                      {photo.source === 'camera' ? 'Foto de Cámara' : 'Foto de Galería'}
+              <Callout tooltip onPress={() => openPhoto(photo.id)}>
+                <View style={styles.callout}>
+                  {/* Dentro de un Callout de Android solo se dibuja la imagen nativa */}
+                  <NativeImage source={{ uri: photo.uri }} style={styles.calloutImage} />
+                  <View style={styles.calloutBody}>
+                    <Text style={styles.calloutTitle} numberOfLines={1}>
+                      {photo.note || (photo.source === 'camera' ? 'Foto de cámara' : 'Foto de galería')}
                     </Text>
-                    <Text style={styles.calloutSubtitle}>
+                    <Text style={styles.calloutMeta}>
                       {photo.latitude.toFixed(4)}, {photo.longitude.toFixed(4)}
                     </Text>
-                    {photo.note ? (
-                      <Text style={styles.calloutNote} numberOfLines={1}>
-                        📝 {photo.note}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.calloutDate}>
-                      {new Date(photo.createdAt).toLocaleTimeString()} • Ver detalle ➔
-                    </Text>
+                    <Text style={styles.calloutLink}>Ver detalle</Text>
                   </View>
                 </View>
               </Callout>
@@ -118,186 +105,136 @@ export default function MapaScreen() {
         })}
       </MapView>
 
-      {/* Floating Info Header */}
-      <View style={styles.floatingHeader}>
-        <Text style={styles.floatingHeaderText}>
-          📍 {geoPhotos.length} en el mapa • ⚠️ {unlocatedPhotos.length} sin ubicación
-        </Text>
-      </View>
+      <Animated.View
+        entering={FadeInDown.duration(300)}
+        layout={LinearTransition.duration(180)}
+        style={[styles.summary, { top: insets.top + spacing.sm }]}
+      >
+        <Ionicons name="location" size={14} color={colors.primary} />
+        <Text style={styles.summaryText}>{geoPhotos.length} en el mapa</Text>
+        {unlocatedPhotos.length > 0 ? (
+          <>
+            <View style={styles.summaryDot} />
+            <Text style={styles.summaryMuted}>{unlocatedPhotos.length} sin ubicación</Text>
+          </>
+        ) : null}
+      </Animated.View>
 
       {/* R3: Unlocated photos drawer */}
-      {unlocatedPhotos.length > 0 && (
-        <View style={styles.unlocatedDrawer}>
-          <View style={styles.drawerHeader}>
-            <Text style={styles.drawerTitle}>Sin ubicación ({unlocatedPhotos.length})</Text>
-            <Text style={styles.drawerSubtitle}>Fotos tomadas sin permiso GPS o importadas sin EXIF</Text>
-          </View>
+      {unlocatedPhotos.length > 0 ? (
+        <Animated.View entering={SlideInDown.springify().damping(18)} style={styles.drawer}>
+          <View style={styles.drawerHandle} />
+          <Text style={styles.drawerTitle}>Sin ubicación</Text>
+          <Text style={styles.drawerSubtitle}>Fotos tomadas sin permiso de GPS o importadas</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.drawerScroll}
           >
-            {unlocatedPhotos.map((photo) => (
-              <Pressable
+            {unlocatedPhotos.map((photo, index) => (
+              <Animated.View
                 key={photo.id}
-                style={styles.unlocatedCard}
-                onPress={() => router.push({ pathname: '/foto/[id]' as any, params: { id: String(photo.id) } })}
+                entering={FadeInUp.delay(Math.min(index, 6) * 40).duration(240)}
+                layout={LinearTransition.springify().damping(18)}
               >
-                <Image source={{ uri: photo.uri }} style={styles.unlocatedImage} />
-                <View style={styles.unlocatedMeta}>
-                  <Text style={styles.unlocatedSource}>
-                    {photo.source === 'camera' ? '📷 Cámara' : '🖼️ Galería'}
-                  </Text>
+                <AnimatedPressable
+                  accessibilityRole="button"
+                  scaleTo={0.94}
+                  style={styles.drawerCard}
+                  onPress={() => openPhoto(photo.id)}
+                >
+                  <Image source={{ uri: photo.uri }} style={styles.drawerImage} contentFit="cover" />
                   <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      removePhoto(photo.id);
-                    }}
-                    style={styles.deleteButton}
+                    accessibilityRole="button"
                     accessibilityLabel="Eliminar foto"
+                    hitSlop={8}
+                    onPress={() => confirmDelete(photo.id)}
+                    style={styles.drawerDelete}
                   >
-                    <Text style={styles.deleteButtonText}>✕</Text>
+                    <Ionicons name="close" size={13} color={colors.white} />
                   </Pressable>
-                </View>
-              </Pressable>
+                </AnimatedPressable>
+              </Animated.View>
             ))}
           </ScrollView>
-        </View>
-      )}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  map: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  floatingHeader: {
-    position: 'absolute',
-    top: 16,
+  container: { backgroundColor: colors.background, flex: 1 },
+  map: { flex: 1 },
+  summary: {
+    alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: 'rgba(10, 10, 10, 0.85)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  floatingHeaderText: {
-    color: '#f5f5f5',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  calloutContainer: {
-    backgroundColor: '#171717',
-    borderRadius: 12,
-    padding: 8,
-    width: 200,
-    alignItems: 'center',
+    backgroundColor: colors.scrim,
+    borderColor: colors.border,
+    borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: '#404040',
-  },
-  calloutImage: {
-    width: 184,
-    height: 120,
-    borderRadius: 8,
-    backgroundColor: '#262626',
-  },
-  calloutContent: {
-    marginTop: 6,
-    width: '100%',
-  },
-  calloutTitle: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  calloutSubtitle: {
-    color: '#34d399',
-    fontSize: 11,
-    fontFamily: 'SpaceMono',
-    marginTop: 2,
-  },
-  calloutNote: {
-    color: '#fbbf24',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  calloutDate: {
-    color: '#a3a3a3',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  unlocatedDrawer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(17, 24, 39, 0.95)',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
-  },
-  drawerHeader: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  drawerTitle: {
-    color: '#f9fafb',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  drawerSubtitle: {
-    color: '#9ca3af',
-    fontSize: 11,
-  },
-  drawerScroll: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  unlocatedCard: {
-    width: 90,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#1f2937',
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  unlocatedImage: {
-    width: 90,
-    height: 90,
-  },
-  unlocatedMeta: {
     flexDirection: 'row',
+    gap: spacing.xs + 2,
+    minHeight: 34,
+    paddingHorizontal: spacing.md + 2,
+    position: 'absolute',
+  },
+  summaryText: { ...type.caption, color: colors.text },
+  summaryMuted: { ...type.caption, color: colors.textMuted },
+  summaryDot: {
+    backgroundColor: colors.textFaint,
+    borderRadius: radius.full,
+    height: 3,
+    width: 3,
+  },
+  callout: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    width: 200,
+  },
+  calloutImage: { height: 110, width: 200 },
+  calloutBody: { gap: 2, padding: spacing.sm + 2 },
+  calloutTitle: { ...type.label, color: colors.text },
+  calloutMeta: { ...type.caption, color: colors.textMuted },
+  calloutLink: { ...type.caption, color: colors.primary, marginTop: 2 },
+  drawer: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderTopWidth: 1,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  drawerHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.borderStrong,
+    borderRadius: radius.full,
+    height: 4,
+    marginBottom: spacing.sm,
+    width: 36,
+  },
+  drawerTitle: { ...type.label, color: colors.text },
+  drawerSubtitle: { ...type.caption, color: colors.textMuted, marginBottom: spacing.sm },
+  drawerScroll: { gap: spacing.sm, paddingVertical: spacing.xs },
+  drawerCard: {
+    borderRadius: radius.md,
+    height: 76,
+    overflow: 'hidden',
+    width: 76,
+  },
+  drawerImage: { height: '100%', width: '100%' },
+  drawerDelete: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 4,
-  },
-  unlocatedSource: {
-    fontSize: 10,
-    color: '#d1d5db',
-  },
-  deleteButton: {
-    padding: 2,
-  },
-  deleteButtonText: {
-    color: '#ef4444',
-    fontSize: 12,
-    fontWeight: 'bold',
+    backgroundColor: colors.scrim,
+    borderRadius: radius.full,
+    height: 22,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 4,
+    top: 4,
+    width: 22,
   },
 });

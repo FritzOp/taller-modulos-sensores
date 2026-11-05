@@ -1,26 +1,58 @@
 import React, { useState } from 'react';
 import {
-  View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  Pressable,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import { Button } from '@/components/ui/Button';
+import { colors, radius, spacing, type, type IconName } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { useSync } from '@/hooks/useSync';
+
+function Field({
+  icon,
+  ...props
+}: { icon: IconName } & React.ComponentProps<typeof TextInput>) {
+  return (
+    <View style={styles.field}>
+      <Ionicons name={icon} size={18} color={colors.textFaint} />
+      <TextInput style={styles.input} placeholderTextColor={colors.textFaint} {...props} />
+    </View>
+  );
+}
+
+const SEGMENT_GAP = 4;
 
 export default function AuthScreen() {
   const { user, isConfigured, signIn, signUp, signOut, continueAsGuest } = useAuth();
-  const { isSyncing, pendingCount, syncNow, fetchCloudNow } = useSync();
 
   const [isRegister, setIsRegister] = useState(false);
+  const [segmentWidth, setSegmentWidth] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    width: segmentWidth,
+    transform: [
+      {
+        translateX: withSpring(isRegister ? segmentWidth : 0, { damping: 18, stiffness: 220 }),
+      },
+    ],
+  }));
 
   const handleSubmit = async () => {
     if (!isConfigured) {
@@ -53,7 +85,7 @@ export default function AuthScreen() {
         if (error) {
           Alert.alert('Error al iniciar sesión', error.message);
         } else {
-          Alert.alert('Bienvenido', 'Has iniciado sesión. Tus datos locales están activos.');
+          Alert.alert('Bienvenido', 'Has iniciado sesión. Tus fotos ya se están sincronizando.');
         }
       }
     } finally {
@@ -61,286 +93,166 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSyncNow = async () => {
-    const res = await syncNow();
-    if (res.success) {
-      Alert.alert(
-        'Sincronización Completa',
-        `Subidas: ${res.uploadedCount}\nBorradas: ${res.deletedCount}\nDescargadas de la nube: ${res.downloadedCount}`
-      );
-    } else {
-      Alert.alert('Aviso de Sincronización', res.errors.join('\n'));
-    }
-  };
-
-  const handleFetchCloud = async () => {
-    const count = await fetchCloudNow();
-    Alert.alert('Consulta de la Nube', `Se descargaron/actualizaron ${count} fotos desde Supabase.`);
-  };
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header Profile / Status Card */}
-      <View style={styles.card}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarEmoji}>{user ? '👤' : '📱'}</Text>
-        </View>
-        <Text style={styles.cardTitle}>
-          {user ? user.email : 'Modo Invitado (Solo Local)'}
-        </Text>
-        <Text style={styles.cardSubtitle}>
-          {user
-            ? 'Tus fotos y álbumes locales están aislados y sincronizados con tu cuenta de Supabase.'
-            : 'Las fotos se guardan en la partición local de invitado. Inicia sesión para respaldar en la nube.'}
-        </Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <Animated.View entering={FadeInDown.duration(280)} style={styles.hero}>
+          <View style={styles.heroIcon}>
+            <Ionicons
+              name={user ? 'person' : 'cloud-outline'}
+              size={32}
+              color={colors.primary}
+            />
+          </View>
+          <Text style={styles.heroTitle}>{user ? user.email : 'Tus fotos, en todos lados'}</Text>
+          <Text style={styles.heroDetail}>
+            {user
+              ? 'Tus fotos se sincronizan solas entre tus teléfonos.'
+              : 'Sin cuenta, las fotos se guardan solo en este teléfono. Inicia sesión para respaldarlas en la nube.'}
+          </Text>
+        </Animated.View>
 
         {user ? (
-          <Pressable
-            style={styles.signOutBtn}
-            onPress={async () => {
-              await signOut();
-              Alert.alert('Sesión cerrada', 'Ahora estás en modo local aislado.');
-            }}
-          >
-            <Text style={styles.signOutBtnText}>Cerrar Sesión</Text>
-          </Pressable>
-        ) : null}
-      </View>
+          <Animated.View entering={FadeInDown.delay(80).duration(280)} style={styles.actions}>
+            <Button
+              label="Ver estado de sincronización"
+              icon="sync-outline"
+              onPress={() => router.push('/sincronizacion')}
+            />
+            <Button
+              label="Cerrar sesión"
+              icon="log-out-outline"
+              variant="danger"
+              onPress={async () => {
+                await signOut();
+                Alert.alert('Sesión cerrada', 'Ahora estás en modo local.');
+              }}
+            />
+          </Animated.View>
+        ) : (
+          <Animated.View entering={FadeInDown.delay(80).duration(280)} style={styles.card}>
+            <View
+              style={styles.segment}
+              onLayout={(event) =>
+                setSegmentWidth((event.nativeEvent.layout.width - SEGMENT_GAP * 2) / 2)
+              }
+            >
+              <Animated.View style={[styles.segmentIndicator, indicatorStyle]} />
+              {[
+                { label: 'Iniciar sesión', value: false },
+                { label: 'Crear cuenta', value: true },
+              ].map(({ label, value }) => (
+                <Pressable
+                  key={label}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isRegister === value }}
+                  onPress={() => setIsRegister(value)}
+                  style={styles.segmentButton}
+                >
+                  <Text
+                    style={[styles.segmentLabel, isRegister === value && styles.segmentLabelActive]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
-      {/* Cloud Sync Tools (When logged in) */}
-      {user ? (
-        <View style={styles.card}>
-          <Text style={styles.sectionHeader}>☁️ Respaldo Confiable en Supabase</Text>
+            <Animated.View key={String(isRegister)} entering={FadeIn.duration(200)} style={styles.form}>
+              <Field
+                icon="mail-outline"
+                placeholder="Correo electrónico"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                value={email}
+                onChangeText={setEmail}
+              />
+              <Field
+                icon="lock-closed-outline"
+                placeholder="Contraseña"
+                secureTextEntry
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Button
+                label={isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+                loading={actionLoading}
+                onPress={handleSubmit}
+              />
+            </Animated.View>
 
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Cambios pendientes:</Text>
-            <Text style={[styles.statusValue, pendingCount > 0 ? styles.pendingAlert : null]}>
-              {pendingCount > 0 ? `⚠️ ${pendingCount} pendientes` : '✅ Todo al día'}
-            </Text>
-          </View>
-
-          <Pressable
-            style={[styles.primaryBtn, isSyncing && styles.btnDisabled]}
-            disabled={isSyncing}
-            onPress={handleSyncNow}
-          >
-            {isSyncing ? (
-              <ActivityIndicator color="#09090b" size="small" />
-            ) : (
-              <Text style={styles.primaryBtnText}>🔄 Sincronizar Pendientes Ahora</Text>
-            )}
-          </Pressable>
-
-          <Pressable
-            style={[styles.secondaryBtn, isSyncing && styles.btnDisabled]}
-            disabled={isSyncing}
-            onPress={handleFetchCloud}
-          >
-            <Text style={styles.secondaryBtnText}>📥 Consultar Nube / Restaurar Fotos</Text>
-          </Pressable>
-        </View>
-      ) : (
-        /* Login / Register Form (When Guest) */
-        <View style={styles.card}>
-          <Text style={styles.sectionHeader}>
-            {isRegister ? 'Crear Nueva Cuenta' : 'Iniciar Sesión'}
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Correo electrónico"
-            placeholderTextColor="#71717a"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Contraseña"
-            placeholderTextColor="#71717a"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          <Pressable
-            style={[styles.primaryBtn, actionLoading && styles.btnDisabled]}
-            disabled={actionLoading}
-            onPress={handleSubmit}
-          >
-            {actionLoading ? (
-              <ActivityIndicator color="#09090b" size="small" />
-            ) : (
-              <Text style={styles.primaryBtnText}>
-                {isRegister ? 'Registrarse y Activar Nube' : 'Iniciar Sesión'}
-              </Text>
-            )}
-          </Pressable>
-
-          <Pressable
-            onPress={() => setIsRegister((prev) => !prev)}
-            style={styles.toggleAuthBtn}
-          >
-            <Text style={styles.toggleAuthText}>
-              {isRegister
-                ? '¿Ya tienes cuenta? Inicia sesión'
-                : '¿No tienes cuenta? Regístrate aquí'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              continueAsGuest();
-              router.back();
-            }}
-            style={styles.guestBtn}
-          >
-            <Text style={styles.guestBtnText}>Continuar como Invitado</Text>
-          </Pressable>
-        </View>
-      )}
-    </ScrollView>
+            <Button
+              label="Continuar sin cuenta"
+              variant="ghost"
+              onPress={() => {
+                continueAsGuest();
+                router.back();
+              }}
+            />
+          </Animated.View>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
+  container: { backgroundColor: colors.background, flex: 1 },
+  content: { gap: spacing.xl, padding: spacing.lg, paddingBottom: spacing.xxl },
+  hero: { alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.lg },
+  heroIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.full,
+    height: 76,
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+    width: 76,
   },
-  content: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: 40,
-  },
+  heroTitle: { ...type.title, color: colors.text, textAlign: 'center' },
+  heroDetail: { ...type.body, color: colors.textMuted, lineHeight: 21, textAlign: 'center' },
+  actions: { gap: spacing.md },
   card: {
-    backgroundColor: '#18181b',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: '#27272a',
-    gap: 12,
+    gap: spacing.lg,
+    padding: spacing.lg,
   },
-  avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#27272a',
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  avatarEmoji: {
-    fontSize: 32,
-  },
-  cardTitle: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  cardSubtitle: {
-    color: '#a1a1aa',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  sectionHeader: {
-    color: '#f4f4f5',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  statusRow: {
+  segment: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: SEGMENT_GAP,
+  },
+  segmentIndicator: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.sm,
+    bottom: SEGMENT_GAP,
+    left: SEGMENT_GAP,
+    position: 'absolute',
+    top: SEGMENT_GAP,
+  },
+  segmentButton: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: 40 },
+  segmentLabel: { ...type.label, color: colors.textFaint },
+  segmentLabelActive: { color: colors.text },
+  form: { gap: spacing.md },
+  field: {
     alignItems: 'center',
-    paddingVertical: 4,
-  },
-  statusLabel: {
-    color: '#a1a1aa',
-    fontSize: 14,
-  },
-  statusValue: {
-    color: '#10b981',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  pendingAlert: {
-    color: '#f59e0b',
-  },
-  input: {
-    backgroundColor: '#09090b',
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#3f3f46',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: '#ffffff',
-    fontSize: 15,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    height: 48,
+    paddingHorizontal: spacing.md,
   },
-  primaryBtn: {
-    backgroundColor: '#10b981',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  primaryBtnText: {
-    color: '#09090b',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  secondaryBtn: {
-    backgroundColor: '#27272a',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryBtnText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  signOutBtn: {
-    marginTop: 8,
-    backgroundColor: '#ef4444',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  signOutBtnText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  toggleAuthBtn: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  toggleAuthText: {
-    color: '#34d399',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  guestBtn: {
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#27272a',
-    marginTop: 6,
-    paddingTop: 12,
-  },
-  guestBtnText: {
-    color: '#71717a',
-    fontSize: 13,
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
+  input: { color: colors.text, flex: 1, fontSize: 15, height: '100%' },
 });

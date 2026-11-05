@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { colors } from '@/constants/theme';
 
 interface Props {
   angle: number;
@@ -14,7 +15,7 @@ export function CameraLevelIndicator({ angle, isLevel, isAvailable }: Props) {
 
   // Constrain rotation display between -45 and 45 degrees for UI clarity
   const clampedAngle = Math.max(-45, Math.min(45, angle));
-  const activeColor = isLevel ? '#10b981' : '#f59e0b';
+  const activeColor = isLevel ? colors.primary : colors.warning;
 
   return (
     <View style={styles.container} pointerEvents="none">
