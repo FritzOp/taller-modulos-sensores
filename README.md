@@ -169,17 +169,17 @@ Muestra las fotos pendientes, la fecha de la última sincronización, cuántas s
 
 **Automático:** el código real de `services/sync.ts` y de los repositorios corre con SQLite real y las migraciones reales, contra un servidor en memoria que imita las reglas de los triggers y de RLS. Salida completa en [`docs/evidencia/pruebas-automaticas.txt`](docs/evidencia/pruebas-automaticas.txt).
 
-**Dos teléfonos:** falta ejecutar esta columna en teléfonos reales. Marca el resultado cuando la hagas.
+**Teléfonos reales:** un iPhone y un emulador Android, con la misma cuenta y el proyecto real de Supabase. Horas, detalles y límites en [`docs/evidencia/pruebas-con-telefonos.md`](docs/evidencia/pruebas-con-telefonos.md).
 
-| # | Escenario | Resultado esperado | Obtenido (automático) | Dos teléfonos |
+| # | Escenario | Resultado esperado | Obtenido (automático) | Obtenido (teléfonos reales) |
 | --- | --- | --- | --- | --- |
-| 1 | Foto tomada sin conexión; luego se reconecta | Se sube sola; pendientes vuelve a 0 | ✅ 2 fotos suben, pendientes 2 → 0, archivo en el bucket | ⬜ Pendiente |
-| 2 | Foto creada en el teléfono A | Aparece en B con imagen y ubicación | ✅ Aparece con nota, coordenadas y archivo; no se vuelve a subir | ⬜ Pendiente |
-| 3 | Nota editada en A y después en B, ambos sin conexión | En los dos queda la nota de B | ✅ Probado con A primero y con B primero | ⬜ Pendiente |
-| 4 | Foto borrada en A | Desaparece en B y del bucket | ✅ La fila queda como marca; archivo fuera del bucket y de los dos teléfonos | ⬜ Pendiente |
-| 5 | Foto editada en A y borrada después en B, ambos sin conexión | Queda borrada en los dos | ✅ Probado con A primero y con B primero | ⬜ Pendiente |
-| 6 | Se corta la red a mitad de una sincronización de 5 fotos | Termina sin duplicar filas ni archivos | ✅ Probado con un corte en cada una de las 11 peticiones: siempre 5 filas y 5 archivos | ⬜ Pendiente |
-| 7 | Se cierra la app con fotos pendientes y se abre con red | Se sincroniza al abrir | ✅ La pendiente sobrevive en una base en disco, y el ciclo se dispara al montar | ⬜ Pendiente |
+| 1 | Foto tomada sin conexión; luego se reconecta | Se sube sola; pendientes vuelve a 0 | ✅ 2 fotos suben, pendientes 2 → 0, archivo en el bucket | ✅ En el emulador subieron solas unos 7 s después de volver la red |
+| 2 | Foto creada en el teléfono A | Aparece en B con imagen y ubicación | ✅ Aparece con nota, coordenadas y archivo; no se vuelve a subir | ✅ Del iPhone al emulador, con imagen, ubicación y pin |
+| 3 | Nota editada en A y después en B, ambos sin conexión | En los dos queda la nota de B | ✅ Probado con A primero y con B primero | ⚠️ Quedó la más reciente en los dos, pero solo el emulador estaba sin red |
+| 4 | Foto borrada en A | Desaparece en B y del bucket | ✅ La fila queda como marca; archivo fuera del bucket y de los dos teléfonos | ✅ Marca y archivo confirmados en Supabase, también con un borrado sin red desde el iPhone |
+| 5 | Foto editada en A y borrada después en B, ambos sin conexión | Queda borrada en los dos | ✅ Probado con A primero y con B primero | ✅ La edición sin red del emulador no llegó a la nube y la foto no revivió |
+| 6 | Se corta la red a mitad de una sincronización de 5 fotos | Termina sin duplicar filas ni archivos | ✅ Probado con un corte en cada una de las 11 peticiones: siempre 5 filas y 5 archivos | ✅ El corte dejó una foto con archivo y sin fila; terminó con 5 filas y 5 archivos |
+| 7 | Se cierra la app con fotos pendientes y se abre con red | Se sincroniza al abrir | ✅ La pendiente sobrevive en una base en disco, y el ciclo se dispara al montar | ✅ Con la app cerrada sin red, subió al abrirla |
 
 ### Otras pruebas automáticas
 
@@ -200,7 +200,7 @@ Los triggers y las políticas RLS se probaron en el proyecto de Supabase, dentro
 
 ### Revisión en el emulador de Android
 
-La app corrió en Expo Go (SDK 58) en un emulador Android 17, en modo invitado, con cámara virtual, SQLite y mapa reales.
+La app corrió en Expo Go (SDK 58) en un emulador Android 17, primero en modo invitado, con cámara virtual, SQLite y mapa reales. Las capturas son de ese modo. Las pruebas con cuenta están en la matriz de arriba.
 
 | Comprobado | Resultado |
 | --- | --- |
@@ -224,8 +224,8 @@ Las fotos tomadas en el emulador salen negras con un sello de fecha: es lo que e
 
 ### Qué no se ha probado
 
-- **Con sesión iniciada, desde la app.** La sincronización, el feed con datos, la subida a Storage, las URLs firmadas y el modo sin conexión con cuenta solo se ejercitaron con el servidor en memoria.
-- **En un teléfono físico** y con dos teléfonos.
+- **Dos teléfonos físicos.** Se usaron un iPhone y un emulador Android.
+- **Escenario 3 con los dos teléfonos sin red.** Solo está cubierto por las pruebas automáticas.
 
 ### Prueba sin conexión (GIF)
 
@@ -245,6 +245,7 @@ Las fotos tomadas en el emulador salen negras con un sello de fecha: es lo que e
 - **Dos fotos con el mismo milisegundo** justo en el borde de una página del feed: la segunda se saltaría. El cursor es solo la fecha, como propone la guía.
 - **Ventana mínima al revivir una foto:** si un teléfono elimina el archivo justo después de que otro lo volvió a subir, la descarga falla y queda reportada como error de esa foto.
 - `geocam_albums` y `geocam_deleted_records` quedaron sin uso en Supabase. No se borraron para no destruir datos.
+- **La sincronización no es instantánea:** un cambio de otro teléfono llega al abrir la app, al volver a primer plano, al recuperar la red o tras un cambio local.
 - **Reto opcional** (conservar las dos versiones de la nota): no se hizo.
 
 ---

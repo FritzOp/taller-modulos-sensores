@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   cancelAnimation,
@@ -15,6 +16,7 @@ import Animated, {
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { colors, radius, spacing, type, type IconName } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useSync } from '@/hooks/useSync';
 
 function Stat({ icon, label, value, delay }: { icon: IconName; label: string; value: number; delay: number }) {
@@ -69,7 +71,28 @@ function headline(state: {
 }
 
 export default function SincronizacionScreen() {
+  const { user, signOut } = useAuth();
   const { isOnline, isSyncing, pendingCount, lastResult, error, syncNow } = useSync();
+
+  const confirmSignOut = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      pendingCount > 0
+        ? 'Tus fotos pendientes se quedan en este teléfono y se subirán cuando vuelvas a entrar con esta cuenta.'
+        : 'Tus fotos siguen en la nube y en este teléfono. Volverán a aparecer cuando entres con esta cuenta.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.back();
+          },
+        },
+      ]
+    );
+  };
 
   const failures = lastResult?.failures ?? [];
   const lastError = lastResult?.error ?? (failures.length > 0 ? error?.message : null);
@@ -172,6 +195,21 @@ export default function SincronizacionScreen() {
         disabled={!isOnline}
         onPress={() => syncNow()}
       />
+
+      <View style={styles.account}>
+        <View style={styles.accountRow}>
+          <Ionicons name="person-circle-outline" size={20} color={colors.textMuted} />
+          <Text style={styles.accountEmail} numberOfLines={1}>
+            {user?.email}
+          </Text>
+        </View>
+        <Button
+          label="Cerrar sesión"
+          icon="log-out-outline"
+          variant="danger"
+          onPress={confirmSignOut}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -216,4 +254,12 @@ const styles = StyleSheet.create({
   errorTitle: { ...type.label, color: colors.danger },
   errorText: { ...type.caption, color: colors.text, lineHeight: 18 },
   hint: { ...type.caption, color: colors.textMuted },
+  account: {
+    borderColor: colors.border,
+    borderTopWidth: 1,
+    gap: spacing.md,
+    paddingTop: spacing.xl,
+  },
+  accountRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  accountEmail: { ...type.body, color: colors.textMuted, flexShrink: 1 },
 });

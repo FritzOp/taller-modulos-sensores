@@ -16,6 +16,8 @@ import { colors, radius, spacing, type, type IconName } from '@/constants/theme'
 import { useAuth } from '@/context/AuthContext';
 import { useSync } from '@/hooks/useSync';
 
+const pendingLabel = (count: number) => (count === 1 ? '1 pendiente' : `${count} pendientes`);
+
 function describe(state: {
   isGuest: boolean;
   isOnline: boolean;
@@ -29,14 +31,14 @@ function describe(state: {
   if (!isOnline) {
     return {
       icon: 'cloud-offline-outline',
-      label: pendingCount > 0 ? `Sin conexión · ${pendingCount} pendientes` : 'Sin conexión',
+      label: pendingCount > 0 ? `Sin conexión · ${pendingLabel(pendingCount)}` : 'Sin conexión',
       color: colors.warning,
     };
   }
   if (isSyncing) return { icon: 'sync-outline', label: 'Sincronizando…', color: colors.info };
   if (hasError) return { icon: 'alert-circle-outline', label: 'Error al sincronizar', color: colors.danger };
   if (pendingCount > 0) {
-    return { icon: 'cloud-upload-outline', label: `${pendingCount} pendientes`, color: colors.warning };
+    return { icon: 'cloud-upload-outline', label: pendingLabel(pendingCount), color: colors.warning };
   }
   return { icon: 'cloud-done-outline', label: 'Al día', color: colors.primary };
 }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Alert, Image as NativeImage, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MapView, { Callout, Marker } from 'react-native-maps';
 import { router } from 'expo-router';
@@ -53,6 +53,46 @@ export default function MapaScreen() {
     };
   }, [geo.coords, geoPhotos]);
 
+  // initialRegion solo aplica al montar, y esta pestaña sigue montada. Cuando llega una foto,
+  // también desde otro teléfono, el mapa va hacia ella para que su pin no quede fuera de vista.
+  const mapRef = useRef<MapView>(null);
+  const newestPhoto = geoPhotos[0];
+  const newestLatitude = newestPhoto?.latitude ?? null;
+  const newestLongitude = newestPhoto?.longitude ?? null;
+  const userLatitude = geo.coords?.latitude ?? null;
+  const userLongitude = geo.coords?.longitude ?? null;
+  const hasPhotos = newestLatitude !== null && newestLongitude !== null;
+
+  useEffect(() => {
+    if (newestLatitude === null || newestLongitude === null) return;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: newestLatitude,
+        longitude: newestLongitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      500
+    );
+  }, [newestLatitude, newestLongitude]);
+
+  // Sin fotos con ubicación, el mapa va a donde está el usuario apenas se conoce su posición
+  const locationKnown = userLatitude !== null && userLongitude !== null;
+  useEffect(() => {
+    if (hasPhotos || !locationKnown) return;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: userLatitude,
+        longitude: userLongitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      500
+    );
+    // Solo la primera vez que se conoce: no debe perseguir al usuario mientras mira el mapa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPhotos, locationKnown]);
+
   const confirmDelete = (id: number) => {
     Alert.alert(
       'Eliminar foto',
@@ -67,6 +107,7 @@ export default function MapaScreen() {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation={geo.permission === 'granted'}
