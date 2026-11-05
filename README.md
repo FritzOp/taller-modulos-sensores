@@ -173,10 +173,10 @@ Muestra las fotos pendientes, la fecha de la última sincronización, cuántas s
 
 | # | Escenario | Resultado esperado | Obtenido (automático) | Obtenido (teléfonos reales) |
 | --- | --- | --- | --- | --- |
-| 1 | Foto tomada sin conexión; luego se reconecta | Se sube sola; pendientes vuelve a 0 | ✅ 2 fotos suben, pendientes 2 → 0, archivo en el bucket | ✅ En el emulador subieron solas unos 7 s después de volver la red |
+| 1 | Foto tomada sin conexión; luego se reconecta | Se sube sola; pendientes vuelve a 0 | ✅ 2 fotos suben, pendientes 2 → 0, archivo en el bucket | ✅ En el emulador y en el iPhone subieron solas al volver la red; ver el GIF |
 | 2 | Foto creada en el teléfono A | Aparece en B con imagen y ubicación | ✅ Aparece con nota, coordenadas y archivo; no se vuelve a subir | ✅ Del iPhone al emulador, con imagen, ubicación y pin |
 | 3 | Nota editada en A y después en B, ambos sin conexión | En los dos queda la nota de B | ✅ Probado con A primero y con B primero | ⚠️ Quedó la más reciente en los dos, pero solo el emulador estaba sin red |
-| 4 | Foto borrada en A | Desaparece en B y del bucket | ✅ La fila queda como marca; archivo fuera del bucket y de los dos teléfonos | ✅ Marca y archivo confirmados en Supabase, también con un borrado sin red desde el iPhone |
+| 4 | Foto borrada en A | Desaparece en B y del bucket | ✅ La fila queda como marca; archivo fuera del bucket y de los dos teléfonos | ✅ Borrada en el emulador, desapareció del iPhone y del bucket; también con un borrado sin red desde el iPhone |
 | 5 | Foto editada en A y borrada después en B, ambos sin conexión | Queda borrada en los dos | ✅ Probado con A primero y con B primero | ✅ La edición sin red del emulador no llegó a la nube y la foto no revivió |
 | 6 | Se corta la red a mitad de una sincronización de 5 fotos | Termina sin duplicar filas ni archivos | ✅ Probado con un corte en cada una de las 11 peticiones: siempre 5 filas y 5 archivos | ✅ El corte dejó una foto con archivo y sin fila; terminó con 5 filas y 5 archivos |
 | 7 | Se cierra la app con fotos pendientes y se abre con red | Se sincroniza al abrir | ✅ La pendiente sobrevive en una base en disco, y el ciclo se dispara al montar | ✅ Con la app cerrada sin red, subió al abrirla |
@@ -229,9 +229,11 @@ Las fotos tomadas en el emulador salen negras con un sello de fecha: es lo que e
 
 ### Prueba sin conexión (GIF)
 
-> **Pendiente de grabar en el teléfono.** Guárdalo como `docs/prueba-sin-conexion.gif` y reemplaza esta nota por `![Prueba sin conexión](docs/prueba-sin-conexion.gif)`.
->
-> Pasos: inicia sesión, activa modo avión, toma dos fotos y edita una nota. El indicador muestra "Sin conexión · 3 pendientes" o similar. Quita el modo avión: pasa a "Sincronizando…" y después a "Al día" sin tocar nada.
+<img src="docs/prueba-sin-conexion.gif" width="300" alt="Con una foto pendiente sin conexión, se quita el modo avión y el indicador pasa a Sincronizando y luego a Al día" />
+
+Grabado en un iPhone. La foto se tomó en modo avión y queda como "Sin conexión · 1 pendiente". Al quitar el modo avión, el indicador pasa solo a "Sincronizando…" y a "Al día". En Supabase, esa foto se tomó a las 04:06:03 y llegó a las 04:10:10 UTC.
+
+El GIF recorta el inicio y alarga el final, y un recuadro oscuro tapa lo que se estaba reproduciendo en el Centro de control. El resto es la grabación original.
 
 ---
 

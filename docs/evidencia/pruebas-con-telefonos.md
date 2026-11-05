@@ -9,10 +9,11 @@ Los resultados salen de las capturas del emulador, de lo observado en el iPhone 
 | # | Escenario | Qué se hizo | Resultado |
 | --- | --- | --- | --- |
 | 1 | Foto sin conexión | Emulador: 2 fotos en modo avión. La red volvió a las 03:47:59 | ✅ Subieron solas a las 03:48:06 y 03:48:07, sin tocar nada |
+| 1a | Foto sin conexión en el iPhone | Foto `5185aed0` tomada a las 04:06:03, sin red, y modo avión quitado durante la grabación del GIF | ✅ Llegó a la nube a las 04:10:10, sin tocar nada |
 | 1b | Nota sin conexión | iPhone: nota escrita sin red, confirmado por quien la hizo | ✅ Llegó 18 s después, al reconectar |
 | 2 | De un teléfono a otro | iPhone: foto `632e67d9`. Emulador: enviado a segundo plano y de vuelta | ✅ Apareció con imagen, ubicación y pin; "Bajaron 1". También se vio en la pestaña Nube |
 | 3 | Conflicto de notas | Emulador sin red: nota a las 03:41. iPhone: nota a las 03:42, **con red** | ✅ Quedó la del iPhone en los dos y en la nube; el emulador no subió nada. No cubre el caso con los dos sin red |
-| 4 | Borrado | Emulador: borró `0860e538` | ✅ Fila marcada a las 03:46:52 y archivo fuera del bucket a las 03:46:53 |
+| 4 | Borrado | Emulador: borró `0860e538` | ✅ Fila marcada a las 03:46:52 y archivo fuera del bucket a las 03:46:53. El video del iPhone muestra después solo 2 fotos, sin ella |
 | 4b | Borrado sin conexión | iPhone: borró `0f62f2bc` a las 03:56:43, sin red | ✅ Al reconectar, la marca llegó a las 03:57:10 y el archivo salió del bucket |
 | 5 | Editada y borrada después | Emulador sin red: editó `b7d25389` a las 03:55. iPhone: la borró a las 03:57:52 | ✅ Al reconectar: de 14 a 12 fotos, "Subieron 0". La edición nunca llegó a la nube |
 | 6 | Corte a mitad | Emulador: 5 fotos sin red. Red cortada a las 03:51:32, durante la subida | ✅ 5 filas y 5 archivos, sin duplicados (detalle abajo) |
