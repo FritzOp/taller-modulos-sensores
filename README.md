@@ -23,7 +23,7 @@ La app trabaja normal sin conexión. Cuando vuelve la red, sube sola lo pendient
 
 | Comando | Para qué |
 | --- | --- |
-| `npm test` | Pruebas automáticas (83) |
+| `npm test` | Pruebas automáticas (88) |
 | `npm run typecheck` | Revisión de tipos |
 | `npm run lint` | Lint |
 
@@ -192,6 +192,7 @@ Muestra las fotos pendientes, la fecha de la última sincronización, cuántas s
 | `cloudPhotos.test.ts` | Cursor sin repetidos cuando llega una foto nueva, búsqueda, comodines, borradas |
 | `nube.screen.test.tsx` | Los estados de UI, infinite scroll, búsqueda con una sola petición |
 | `persist.test.ts` | La caché sobrevive, y no guarda la sincronización ni los errores |
+| `authMessages.test.ts` | Registro con correo ya existente, cuenta por confirmar y errores en español |
 
 ### Pruebas contra PostgreSQL real
 

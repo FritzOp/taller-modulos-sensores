@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { queryClient } from '@/lib/queryClient';
+import { authErrorMessage, signUpOutcome, type SignUpOutcome } from '@/services/authMessages';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 
 interface AuthContextType {
@@ -10,8 +11,11 @@ interface AuthContextType {
   isGuest: boolean;
   loading: boolean;
   isConfigured: boolean;
-  signIn: (email: string, pass: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, pass: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, pass: string) => Promise<{ error: string | null }>;
+  signUp: (
+    email: string,
+    pass: string
+  ) => Promise<{ error: string | null; outcome: SignUpOutcome | null }>;
   signOut: () => Promise<void>;
   continueAsGuest: () => void;
 }
@@ -56,15 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: email.trim(),
       password: pass,
     });
-    return { error: error as Error | null };
+    return { error: error ? authErrorMessage(error) : null };
   };
 
   const signUp = async (email: string, pass: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password: pass,
     });
-    return { error: error as Error | null };
+    if (error) return { error: authErrorMessage(error), outcome: null };
+    return { error: null, outcome: signUpOutcome(data) };
   };
 
   const signOut = async () => {

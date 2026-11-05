@@ -71,19 +71,30 @@ export default function AuthScreen() {
     setActionLoading(true);
     try {
       if (isRegister) {
-        const { error } = await signUp(email, password);
+        const { error, outcome } = await signUp(email, password);
         if (error) {
-          Alert.alert('Error al registrarse', error.message);
-        } else {
+          Alert.alert('No se pudo crear la cuenta', error);
+        } else if (outcome === 'already_registered') {
+          setIsRegister(false);
+          setPassword('');
           Alert.alert(
-            'Cuenta creada',
-            'Tu cuenta ha sido creada exitosamente. Ya puedes respaldar tus fotos.'
+            'Este correo ya tiene cuenta',
+            'No se creó una cuenta nueva ni cambió la contraseña. Inicia sesión con tu contraseña de siempre o usa otro correo.'
           );
+        } else if (outcome === 'confirm_email') {
+          setIsRegister(false);
+          setPassword('');
+          Alert.alert(
+            'Confirma tu correo',
+            'Te enviamos un enlace. Ábrelo para activar la cuenta y después inicia sesión aquí.'
+          );
+        } else {
+          Alert.alert('Cuenta creada', 'Tus fotos ya se están sincronizando.');
         }
       } else {
         const { error } = await signIn(email, password);
         if (error) {
-          Alert.alert('Error al iniciar sesión', error.message);
+          Alert.alert('No se pudo iniciar sesión', error);
         } else {
           Alert.alert('Bienvenido', 'Has iniciado sesión. Tus fotos ya se están sincronizando.');
         }
