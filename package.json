@@ -3,12 +3,16 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@ai-sdk/react": "^4.0.177",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@stardazed/streams-text-encoding": "^1.0.2",
     "@supabase/supabase-js": "^2.118.0",
     "@tanstack/query-async-storage-persister": "^5.106.0",
     "@tanstack/react-query": "^5.106.0",
     "@tanstack/react-query-persist-client": "^5.106.0",
+    "@ungap/structured-clone": "^1.4.0",
+    "ai": "^7.0.173",
     "drizzle-orm": "^0.45.4",
     "expo": "^58.0.23",
     "expo-camera": "~58.0.14",
@@ -18,6 +22,7 @@
     "expo-font": "~58.0.11",
     "expo-haptics": "~58.0.7",
     "expo-image": "~58.0.18",
+    "expo-image-manipulator": "~58.0.16",
     "expo-image-picker": "~58.0.10",
     "expo-linking": "~58.0.16",
     "expo-location": "~58.0.20",
@@ -37,13 +42,15 @@
     "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "~4.30.1",
     "react-native-web": "^0.21.4",
-    "react-native-worklets": "0.13.0"
+    "react-native-worklets": "0.13.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
+    "@types/ungap__structured-clone": "^1.2.0",
     "babel-plugin-inline-import": "^3.0.0",
     "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.31.11",
@@ -70,7 +77,8 @@
       "<rootDir>/__tests__/**/*.test.ts?(x)"
     ],
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/$1",
+      "^npm:zod(@.*)?$": "zod"
     },
     "testTimeout": 20000
   }

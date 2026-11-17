@@ -1,8 +1,48 @@
 # Registro de Auditoría de IA (AI-LOG)
 
 **Estudiante(s):** Taller Integrador 2
-**Proyecto:** GeoCam — Módulos Nativos, SQLite Offline-First y Respaldo Confiable en Supabase
+**Proyecto:** GeoCam — Módulos Nativos, SQLite Offline-First, Respaldo en Supabase e IA Generativa
 **Integrantes:** Deivis Magdaniel, Edgar Zuñiga
+
+---
+
+# Semana 10: IA Generativa Multimodal y Edge AI
+
+**Estudiante(s):** Deivis Magdaniel, Edgar Zuñiga
+**Semana:** 10
+**Proyecto:** GeoCam ve y Asistente IA, Taller Integrador 2 (tag v2.0.0)
+**Herramienta:** Claude Code (Claude Opus 5.5)
+
+## 1. Prompts Utilizados
+
+- "toca realizar ahora esto, ahí tienes el pdf, ahí te adjunté un zip que es una guía que dio el profe, mira y busca lo que te sirva y la guía para realizar" (con la Guía de la Semana 10 y el ejemplo `s10-tutor-ia.zip` del profesor: taller "GeoCam ve" y retos C1 a C6)
+- "ya se anda despausando, ya puse la api de gemini" (la key la puso el estudiante como secreto en Supabase; nunca se pegó en el chat ni en un archivo)
+
+## 2. Código Generado vs. Código Modificado
+
+- **¿Qué generó la IA?:** las tres Edge Functions (`asistente`, `describir-foto`, `tarjetas`) y su código compartido en `supabase/functions/_shared/`, `supabase/semana10.sql`, la migración `drizzle/0005`, `services/vision.ts`, `services/ai/`, los hooks `useConversacion` y `usePerfil`, `db/repositories/chat.ts`, las pantallas Asistente, Perfil y Tarjetas, la tarjeta de descripción del detalle, las pruebas y este registro.
+- **¿Qué tomó del ejemplo del profesor?:** `polyfills.ts`, el uso de `expo/fetch` en el transporte, `withSupabase({ auth: 'user' })` y la forma de `toUIMessageStream`.
+- **¿Qué cambió frente al ejemplo?:**
+  - El ejemplo no guarda el historial; aquí se guarda en SQLite con upsert por id (C1).
+  - El perfil se valida en el servidor con zod y `.catch()`: un tema inventado o un nombre con instrucciones se reemplazan por valores seguros (C2).
+  - El límite diario se cuenta en `uso_ia` con el cliente del usuario y RLS sin política de borrado, para que la base de datos lo haga cumplir y no solo el código (C5).
+  - Ningún error crudo de Gemini llega a la pantalla: el servidor lo traduce a un mensaje y la app decide si ofrece Reintentar o cierra la sesión (C4).
+  - Se agregó un modelo de respaldo y un tiempo máximo por intento, que el ejemplo no tiene (ver errores 1 y 2).
+
+## 3. Alucinaciones o Errores Detectados
+
+Errores reales, con la prueba que los reveló:
+
+1. **Gemini saturado y una espera de más de un minuto.** La primera prueba real de "Describir con IA" tardó 74 s y terminó en "La IA no pudo responder". Los registros de la función mostraron `503 This model is currently experiencing high demand` en `gemini-3.8-flash`: el primer intento tardó 63 s en fallar y el reintento automático, 8 s más. La primera versión no tenía tiempo máximo ni plan B. Se agregó un tiempo máximo de 25 s por intento, el respaldo `gemini-3.5-flash-lite` y un mensaje propio para la saturación (`supabase/functions/_shared/ia.ts`). Repetida la prueba, el modelo principal seguía saturado y la descripción llegó en 18 s desde el respaldo; los registros muestran `Modelo gemini-3.8-flash saturado, se intenta con el siguiente`.
+2. **El chat no podía cambiar de modelo a mitad de respuesta.** Con streaming, la respuesta ya empezó cuando llega el error. La solución fue esperar el primer evento del modelo: si es un error de saturación o no llega a tiempo, se cancela y se intenta con el siguiente antes de que la persona vea nada (`streamConRespaldo`). Al revisarlo apareció un caso que la primera versión no cubría: al abortar, el stream puede cerrarse sin lanzar error, y se habría entregado una respuesta vacía. Se marca como saturado si la señal se abortó.
+3. **Inventó un lugar pese a la instrucción.** Con el perfil "viajes y lugares", nivel avanzado, a la pregunta "¿qué sitio me recomiendas fotografiar este fin de semana?" respondió con un barrio concreto de una ciudad que nadie mencionó, aunque las instrucciones decían "no inventes lugares". Se agregó: "No sabes en qué ciudad está la persona: si pide un sitio, sugiere tipos de lugares o pregúntale la ciudad". Con la misma pregunta, ahora pide la ciudad. Capturas: `docs/evidencia/semana10/perfil-antes-lugar-inventado.png` y `perfil-despues-pregunta-ciudad.png`.
+4. **Asteriscos en el chat.** Gemini responde con Markdown y la burbuja mostraba `**Las luces de los coches:**` tal cual. Se agregó un intérprete mínimo de negritas, viñetas y títulos (`services/ai/markdown.ts`) con pruebas, sin una librería. La primera versión dejó pasar `*hora dorada*`, que se vio en otra respuesta, y se corrigió.
+5. **`tsc` revisaba el código de Deno.** Las funciones importan `npm:ai@7` y `Deno.env`, que el TypeScript de la app no entiende. Se excluyó `supabase/functions` de `tsconfig.json` y las funciones se revisan con `deno check`. Como una prueba de Jest importa `_shared/perfil.ts`, también se mapeó `npm:zod@4` al zod instalado.
+6. **Lint en Tarjetas.** La primera versión llamaba a la función dentro de un `useEffect` con `setState`, y falló con `react-hooks/set-state-in-effect`. Se cambió a `useQuery` sin reintentos automáticos, para no gastar cuota.
+7. **Rutas tipadas.** `router.push('/tarjetas')` falló en `tsc` hasta que Metro regeneró los tipos de Expo Router.
+8. **Migraciones con la base pausada.** El proyecto de Supabase estaba pausado; la primera migración falló con "database system is shutting down" mientras se restauraba. Se esperó a que el proyecto estuviera sano y se aplicó.
+9. **Errores que solo se vieron en el emulador.** Al volver de Perfil se veía un destello blanco: faltaba `contentStyle` en el `Stack`. Las tarjetas tardaron 28 s en aparecer y la pantalla solo mostraba rectángulos vacíos: ahora dice "Creando tarjetas con IA".
+10. **Un error de la propia herramienta.** Al escribir una prueba con un script de Python, los `\n` del texto se convirtieron en saltos de línea reales y Jest falló con "Unterminated string constant". Se corrigió a mano.
 
 ---
 

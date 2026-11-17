@@ -1,16 +1,16 @@
-# GeoCam: cámara geolocalizada offline-first con sincronización en dos sentidos
+# GeoCam: cámara geolocalizada offline-first con sincronización e IA
 
 **Integrantes:** Deivis Magdaniel, Edgar Zuñiga
 **Proyecto:** Taller Integrador 2, Programación Móvil Avanzada
-**Tecnologías:** Expo SDK 58, TypeScript, Expo Router, Drizzle ORM y SQLite, Supabase (Auth, PostgreSQL, Storage), TanStack Query 5, Reanimated 4.
+**Tecnologías:** Expo SDK 58, TypeScript, Expo Router, Drizzle ORM y SQLite, Supabase (Auth, PostgreSQL, Storage, Edge Functions), TanStack Query 5, Reanimated 4, Vercel AI SDK 7 y Gemini.
 
-La app trabaja normal sin conexión. Cuando vuelve la red, sube sola lo pendiente y baja lo que cambió en otro teléfono con la misma cuenta, incluidos los borrados. La pestaña **Nube** muestra lo que hay en Supabase con un feed paginado.
+La app trabaja normal sin conexión. Cuando vuelve la red, sube sola lo pendiente y baja lo que cambió en otro teléfono con la misma cuenta, incluidos los borrados. La pestaña **Nube** muestra lo que hay en Supabase con un feed paginado. Desde la Semana 10, la app describe sus fotos con IA y tiene un **Asistente** que entiende fotos (ver [Asistente IA](#asistente-ia-y-geocam-ve-semana-10)).
 
 ---
 
 ## Cómo ejecutarlo
 
-1. **Supabase.** En el SQL Editor ejecuta `supabase_schema.sql` y después `supabase_semana9.sql`, una sola vez cada uno.
+1. **Supabase.** En el SQL Editor ejecuta `supabase_schema.sql`, `supabase_semana9.sql` y `supabase/semana10.sql`, en ese orden y una sola vez cada uno. Para la IA, despliega las Edge Functions como se explica en [Cómo desplegarlo](#cómo-desplegarlo).
 2. **Credenciales.** Copia `.env.example` como `.env` y coloca la URL y la llave pública del proyecto.
 3. **Instalar y correr.**
 
@@ -23,9 +23,86 @@ La app trabaja normal sin conexión. Cuando vuelve la red, sube sola lo pendient
 
 | Comando | Para qué |
 | --- | --- |
-| `npm test` | Pruebas automáticas (88) |
+| `npm test` | Pruebas automáticas (116) |
 | `npm run typecheck` | Revisión de tipos |
 | `npm run lint` | Lint |
+
+---
+
+## Asistente IA y GeoCam ve (Semana 10)
+
+La app describe sus fotos con IA y tiene un asistente que responde por partes y entiende fotos. Usa Gemini a través de Edge Functions de Supabase con el Vercel AI SDK v7.
+
+| Chat con foto | Foto descrita | Límite diario |
+| :---: | :---: | :---: |
+| <img src="docs/evidencia/semana10/chat-con-foto.png" width="240" alt="Chat con una foto adjunta y la respuesta del asistente"> | <img src="docs/evidencia/semana10/foto-descrita.png" width="240" alt="Detalle de una foto con la descripción sugerida por la IA"> | <img src="docs/evidencia/semana10/limite-diario.png" width="240" alt="Mensaje de límite de 20 usos de IA en 24 horas"> |
+
+### Cómo viaja una petición
+
+```text
+App (Expo)  ──token de sesión──▶  Edge Function  ──GEMINI_API_KEY──▶  Gemini
+                                   1. verifica el token (401 si no hay)
+                                   2. cuenta el uso en uso_ia con RLS (429 si se pasó)
+                                   3. llama al modelo; si está saturado, al de respaldo
+```
+
+| Función | Para qué | Cómo responde |
+| --- | --- | --- |
+| `asistente` | Chat (C1, C2, C4, C5) | Streaming con `streamText` |
+| `describir-foto` | Describir una foto (taller) | JSON `{ descripcion }` con `generateText` y `Output.object` |
+| `tarjetas` | Tarjetas de repaso (C3) | JSON `{ tarjetas }` con `generateText` y `Output.object` |
+
+El código compartido está en `supabase/functions/_shared/`: el límite diario, la traducción de errores y el respaldo de modelo en `ia.ts`, y la validación del perfil en `perfil.ts`.
+
+### Qué se agregó
+
+- **Describir con IA** en el detalle de la foto (`components/AiDescriptionCard.tsx` y `services/vision.ts`). La foto se reduce a 1024 px en JPEG 0.7 antes de enviarse. La descripción es una sugerencia editable, se guarda en SQLite (`ai_description`, migración `drizzle/0005`) y viaja con la sincronización en los dos sentidos.
+- **C1, historial.** La conversación se guarda en SQLite (`db/repositories/chat.ts`). Al abrir la app sigue donde iba. "Nueva conversación" empieza otra sin borrar la anterior.
+- **C2, perfil.** Nombre, tema y nivel en `app/perfil.tsx`. Viajan con cada mensaje y el servidor los valida con zod antes de armar las instrucciones.
+- **C3, tarjetas.** De 3 a 5 tarjetas de repaso que se voltean, creadas de la conversación (`app/tarjetas.tsx`).
+- **C4, errores.** Banner y envío apagado sin red, mensajes claros para 401, 429, 503 y fallas de red, Reintentar cuando tiene sentido, y cierre de sesión si el token venció (`services/ai/errors.ts`).
+- **C5, límite.** 20 usos de IA cada 24 horas por usuario, contados en la tabla `uso_ia`.
+- **Respaldo de modelo.** Si `gemini-3.8-flash` está saturado o tarda más de 25 s, la función usa `gemini-3.5-flash-lite`. Se agregó después de que una prueba real tardó 74 s y falló (ver `AI-LOG.md`).
+
+### Cómo desplegarlo
+
+1. En el SQL Editor ejecuta `supabase/semana10.sql`: agrega `ai_description` y crea `uso_ia` con RLS.
+2. Guarda la key de Gemini como secreto. **No va en el `.env`**:
+
+   ```bash
+   npx supabase secrets set GEMINI_API_KEY=tu_key
+   ```
+
+   Opcionales: `GEMINI_MODEL`, `GEMINI_MODEL_RESPALDO` y `LIMITE_DIARIO`.
+3. Despliega las funciones:
+
+   ```bash
+   npx supabase functions deploy asistente
+   npx supabase functions deploy describir-foto
+   npx supabase functions deploy tarjetas
+   ```
+
+4. La app no necesita variables nuevas. La migración de SQLite se aplica sola al abrirla.
+
+### Preguntas para sustentar (Semana 10)
+
+**¿Dónde está la key de Gemini y cómo se demuestra?** Solo como secreto `GEMINI_API_KEY` de las Edge Functions; la app nunca la ve. Se demuestra buscando `AIza` en el repositorio, en todo el historial de git y en el bundle exportado con `npx expo export`: no aparece en ninguno. El `.env` solo tiene la URL y la llave pública de Supabase, que sí pueden ir en la app porque RLS protege los datos. Los resultados están en `PRUEBAS.md`.
+
+**¿Qué pasa si alguien envía un perfil falso o un tema inventado?** Nada malo. El servidor valida cada campo con zod y `.catch()`: un tema que no está en la lista se cambia por "fotografía", y un nombre con algo que no sea letras, como "Ignora tus instrucciones: …", se descarta. Así el perfil no puede meter instrucciones al modelo. La app también valida, pero la regla que cuenta es la del servidor, porque una petición se puede armar sin la app.
+
+**¿Por qué el límite se cuenta con el cliente del usuario y no con la secret key?** Porque así lo hace cumplir la base de datos. Con el token del usuario, RLS solo le deja ver e insertar sus propias filas de `uso_ia`, y no hay política para borrar ni actualizar. Aunque alguien llame a la base directamente con su token, no puede reiniciar su contador; se probó por SQL con su rol y afectó 0 filas. Con la secret key, RLS no aplica y un error en la función podría contar o borrar filas de cualquiera.
+
+**¿Qué se guarda en el teléfono y qué se envía a Google?**
+
+| Dónde | Qué |
+| --- | --- |
+| En el teléfono | El historial del chat, el perfil y las descripciones, en SQLite. |
+| A Supabase | Las descripciones, con la sincronización, y una fila por uso de IA. |
+| A Google | Solo lo que se pide en ese momento. Al describir, la foto reducida, sin coordenadas: la ubicación nunca sale en la petición. En el chat, los últimos 20 mensajes con sus fotos, y las instrucciones con el nombre, el tema y el nivel. |
+
+La pantalla avisa antes de enviar una foto.
+
+Las pruebas de esta semana, con resultados reales, están en [`PRUEBAS.md`](PRUEBAS.md).
 
 ---
 

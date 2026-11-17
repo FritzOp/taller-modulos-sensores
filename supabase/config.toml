@@ -1,0 +1,13 @@
+# Configuración mínima para la CLI de Supabase (npx supabase ...).
+project_id = "emloqsvglddviocgtbcs"
+
+# La plataforma rechaza peticiones sin un JWT válido antes de ejecutar la función.
+# Dentro, withSupabase({ auth: 'user' }) vuelve a verificar el token: dos capas.
+[functions.asistente]
+verify_jwt = true
+
+[functions.describir-foto]
+verify_jwt = true
+
+[functions.tarjetas]
+verify_jwt = true

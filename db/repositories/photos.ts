@@ -7,7 +7,7 @@ import { deletePhotoFile } from '@/services/photoFiles';
 export const LOCAL_GUEST = 'local_guest';
 
 export type PhotoInput = Omit<NewPhoto, 'id' | 'createdAt' | 'clientId'>;
-export type PhotoChanges = Partial<Pick<NewPhoto, 'note' | 'favorite' | 'albumId'>>;
+export type PhotoChanges = Partial<Pick<NewPhoto, 'note' | 'favorite' | 'albumId' | 'aiDescription'>>;
 
 const photoWithAlbum = {
   id: photos.id,
@@ -25,6 +25,7 @@ const photoWithAlbum = {
   createdAt: photos.createdAt,
   updatedAt: photos.updatedAt,
   syncedAt: photos.syncedAt,
+  aiDescription: photos.aiDescription,
 };
 
 /**
@@ -107,6 +108,15 @@ export const photosRepo = {
   },
 
   /**
+   * Guarda la descripción sugerida por la IA o editada por la persona. Es un cambio como
+   * cualquier otro: updatedAt avanza y la foto queda pendiente de subir. Sin eso, la
+   * descripción se quedaría en este teléfono.
+   */
+  async setDescription(id: number, aiDescription: string | null) {
+    return photosRepo.update(id, { aiDescription: aiDescription?.trim() || null });
+  },
+
+  /**
    * Borrar es marcar: la foto se oculta y la marca viaja a la nube. El archivo se elimina
    * cuando la marca ya está sincronizada. El invitado nunca sincroniza, así que borra de una vez.
    */
@@ -182,6 +192,7 @@ export const photosRepo = {
     id: number,
     changes: {
       note: string | null;
+      aiDescription: string | null;
       favorite: boolean;
       remotePath: string | null;
       deletedAt: Date | null;

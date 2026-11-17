@@ -36,6 +36,13 @@
       "when": 1793843835655,
       "tag": "0004_quitar_columnas_antiguas",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794891269711,
+      "tag": "0005_ia_y_conversaciones",
+      "breakpoints": true
     }
   ]
 }

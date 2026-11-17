@@ -191,6 +191,11 @@ export default function GaleriaScreen() {
                     {item.note ||
                       new Date(item.createdAt).toLocaleDateString('es-CO', { dateStyle: 'medium' })}
                   </Text>
+                  {item.aiDescription ? (
+                    <Text style={styles.cardDescription} numberOfLines={1}>
+                      ✨ {item.aiDescription}
+                    </Text>
+                  ) : null}
                   {item.albumName ? (
                     <Text style={styles.cardAlbum} numberOfLines={1}>
                       {item.albumName}
@@ -296,6 +301,7 @@ const styles = StyleSheet.create({
   cardBody: { gap: 2, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
   cardTitle: { ...type.label, color: colors.text },
   cardDate: { color: colors.textMuted, fontWeight: '500' },
+  cardDescription: { ...type.caption, color: colors.textMuted },
   cardAlbum: { ...type.caption, color: colors.primary },
   modalRoot: {
     backgroundColor: colors.scrim,

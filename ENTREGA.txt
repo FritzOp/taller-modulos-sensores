@@ -48,3 +48,16 @@ https://github.com/FritzOp/taller-modulos-sensores
 
 6. DISEÑO DE LA INTERFAZ:
    Tema en constants/theme.ts, componentes en components/ui/ y animaciones con Reanimated.
+
+7. SEMANA 10: IA GENERATIVA MULTIMODAL (TAG v2.0.0):
+   - Edge Functions en supabase/functions/: asistente (chat con streaming), describir-foto
+     (JSON con generateText) y tarjetas (salida estructurada). Código compartido en _shared/.
+   - SQL ejecutado: supabase/semana10.sql (columna ai_description y tabla uso_ia con RLS).
+   - La API key de Gemini es un secreto de Supabase: no está en la app, en el .env ni en el
+     repositorio. .env.example explica dónde va.
+   - GeoCam ve: components/AiDescriptionCard.tsx, services/vision.ts y migración drizzle/0005.
+   - C1 historial: db/repositories/chat.ts y hooks/useConversacion.ts.
+   - C2 perfil: app/perfil.tsx y supabase/functions/_shared/perfil.ts (validado con zod).
+   - C3 tarjetas: app/tarjetas.tsx. C4 errores: services/ai/errors.ts.
+   - C5 límite diario: tabla uso_ia, contada con el cliente del usuario.
+   - C6: AI-LOG.md (sección Semana 10) y PRUEBAS.md. Capturas en docs/evidencia/semana10/.

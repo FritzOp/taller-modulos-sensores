@@ -64,6 +64,7 @@ async function applyRemoteRow(userId: string, remote: RemotePhoto): Promise<bool
         accuracy: remote.accuracy,
         source: remote.source,
         note: remote.note,
+        aiDescription: remote.ai_description ?? null,
         favorite: remote.favorite,
         createdAt: new Date(remote.client_created_at),
         updatedAt: remoteUpdatedAt,
@@ -75,6 +76,7 @@ async function applyRemoteRow(userId: string, remote: RemotePhoto): Promise<bool
     case 'apply':
       await photosRepo.applyRemote(local!.id, {
         note: remote.note,
+        aiDescription: remote.ai_description ?? null,
         favorite: remote.favorite,
         remotePath: remote.storage_path || local!.remotePath,
         deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : null,
@@ -146,6 +148,7 @@ async function push(userId: string, failures: SyncFailure[]): Promise<number> {
         accuracy: photo.accuracy,
         source: photo.source,
         note: photo.note,
+        ai_description: photo.aiDescription,
         favorite: photo.favorite,
         client_created_at: photo.createdAt.toISOString(),
         updated_at: version.toISOString(),

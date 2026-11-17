@@ -13,6 +13,7 @@ export interface RemotePhoto {
   accuracy: number | null;
   source: 'camera' | 'gallery';
   note: string | null;
+  ai_description: string | null;
   favorite: boolean;
   client_created_at: string;
   updated_at: string; // reloj del teléfono: decide conflictos

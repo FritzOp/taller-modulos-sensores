@@ -21,6 +21,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { AiDescriptionCard } from '@/components/AiDescriptionCard';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -173,6 +174,13 @@ export default function FotoDetalleScreen() {
             />
           </Animated.View>
         ) : null}
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(90).duration(280)}>
+        <AiDescriptionCard
+          photo={photo}
+          onSave={(descripcion) => update({ aiDescription: descripcion })}
+        />
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(110).duration(280)} style={styles.section}>

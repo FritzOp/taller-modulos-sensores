@@ -1,3 +1,4 @@
+import '../polyfills'; // SIEMPRE la primera línea: el AI SDK la necesita en Hermes
 import { useFonts } from 'expo-font';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -87,7 +88,14 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={navigationTheme}>
       <StatusBar style="light" />
-      <Stack screenOptions={{ ...headerOptions, animation: 'slide_from_right' }}>
+      <Stack
+        screenOptions={{
+          ...headerOptions,
+          animation: 'slide_from_right',
+          // Sin esto, al volver atrás se ve un destello blanco detrás de la pantalla que sale
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="foto/[id]"
@@ -112,6 +120,8 @@ function RootLayoutNav() {
             title: 'Sincronización',
           }}
         />
+        <Stack.Screen name="perfil" options={{ headerShown: true, title: 'Tu perfil' }} />
+        <Stack.Screen name="tarjetas" options={{ headerShown: true, title: 'Tarjetas de repaso' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

@@ -107,6 +107,14 @@ export default function TabLayout() {
           tabBarIcon: tabIcon('cloud', 'cloud-outline'),
         }}
       />
+      <Tabs.Screen
+        name="asistente"
+        options={{
+          title: 'Asistente',
+          headerTitle: 'Asistente',
+          tabBarIcon: tabIcon('sparkles', 'sparkles-outline'),
+        }}
+      />
       <Tabs.Screen name="index" options={{ href: null }} />
     </Tabs>
   );
